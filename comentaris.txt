@@ -1,0 +1,9 @@
+
+
+
+Plan: Buscar objectiu final
+
+Política: Optimitzar presa de decisions 
+
+Important definir bé la recompensa per poder aproximar de la millor manera els valors reals (minimitzar delta). Quan la Q-table deixi de canviar, significa que
+em convergit en una solució òptima.

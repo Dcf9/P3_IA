@@ -54,9 +54,6 @@ class Aichess():
     copyState(state) -> list
         Returns a deep copy of the given state.
 
-    isVisitedSituation(color, mystate) -> bool
-        Checks whether a given state with a specific color has already been visited.
-
     getListNextStatesW(myState) -> list
         Returns a list of possible next states for the white pieces.
 
@@ -143,22 +140,6 @@ class Aichess():
         for piece in state:
             copyState.append(piece.copy())
         return copyState
-        
-    def isVisitedSituation(self, color, mystate):
-        
-        if (len(self.listVisitedSituations) > 0):
-            perm_state = list(permutations(mystate))
-
-            isVisited = False
-            for j in range(len(perm_state)):
-
-                for k in range(len(self.listVisitedSituations)):
-                    if self.isSameState(list(perm_state[j]), self.listVisitedSituations.__getitem__(k)[1]) and color == self.listVisitedSituations.__getitem__(k)[0]:
-                        isVisited = True
-
-            return isVisited
-        else:
-            return False
 
     def getListNextStatesW(self, myState):
 

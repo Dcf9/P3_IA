@@ -46,9 +46,10 @@ class TrobarCami():
 
     """
 
-    def __init__(self, start, goal, exercici):
+    def __init__(self, start, goal, exercici, levelOfDrunkness=0):
         #---------- Atributs pel mapa i el mariner ----------#
         self.sailorPosition = start             # Posició inicial
+        self.levelOfDrunknss = levelOfDrunkness # Nivell d'embriaguesa (randomness)
         self.sailorPositionSimulator = start    # Posició inicial per entrenar    
         self.start = start              
         self.goal = goal                        # Posició objectiu
@@ -156,6 +157,10 @@ class TrobarCami():
         """
         Movem el mariner a la nova posició i actualitzem el dibuix.
         """
+        # Randomness per l'embriaguesa
+        if np.random.uniform(0,1) < self.levelOfDrunknss:
+            action = np.random.randint(0,4)
+
         n_files, n_col = self.map.shape
         row, col = self.sailorPosition
 
@@ -377,7 +382,12 @@ if __name__ == "__main__":
     # Creem la instància de la classe
     # Amb l'estat inicial de l'exercici a) o b)
     # Start i Goal són les posicions d'inici i final
-    cami = TrobarCami((2,0), (0, 3), "a")
+    
+    # EXERCICI 1.a)
+    # cami = TrobarCami((2,0), (0, 3), "a")
+    # EXERCICI 1.b)
     # cami = TrobarCami((2,0), (0, 3), "b")
+    # EXERCICI 1.c)
+    cami = TrobarCami((2,0), (0, 3), "b", 0.01)
 
     cami.q_learning()

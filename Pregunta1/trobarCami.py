@@ -248,6 +248,10 @@ class TrobarCami():
         """
         Comprova si es possible fer el moviment
         """
+        # Randomness per l'embriaguesa
+        if np.random.uniform(0,1) < self.levelOfDrunknss:
+            action = np.random.randint(0,4)
+
         n_files, n_col = self.map.shape
         row, col = self.sailorPositionSimulator
 

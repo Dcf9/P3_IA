@@ -23,8 +23,7 @@ def check_knight(color, board, pos):
         return False
     return True
 
-
-def check_diag_castle(color, board, start, to): 
+def check_diag_castle(color, board, start, to, verbose=False): 
     """
     Checks the diagonal path from `start` (non-inclusive) to `to` (inclusive)
     on board `board` for any threats from the opposite `color`
@@ -45,7 +44,8 @@ def check_diag_castle(color, board, start, to):
     """
     
     if abs(start[0] - to[0]) != abs(start[1] - to[1]):
-        print(incorrect_path)
+        if verbose:
+            print(incorrect_path)
         return False
 
     x_pos =  1 if to[0] - start[0] > 0 else -1
@@ -73,8 +73,7 @@ def check_diag_castle(color, board, start, to):
 
     return True
 
-
-def check_diag(board, start, to):
+def check_diag(board, start, to, verbose=False):
     """
     Checks if there are no pieces along the diagonal path from
     `start` (non-inclusive) to `to` (non-inclusive). 
@@ -90,7 +89,8 @@ def check_diag(board, start, to):
     """
 
     if abs(start[0] - to[0]) != abs(start[1] - to[1]):
-        print(incorrect_path)
+        if verbose:
+            print(incorrect_path)
         return False
 
     x_pos =  1 if to[0] - start[0] > 0 else -1
@@ -100,13 +100,13 @@ def check_diag(board, start, to):
     j = start[1] + y_pos
     while (i < to[0] if x_pos==1 else i > to[0]):
         if board.board[i][j] != None:
-            print(blocked_path)
-            print("At: " + str((i, j)))
+            if verbose:
+                print(blocked_path)
+                print("At: " + str((i, j)))
             return False
         i += x_pos
         j += y_pos
     return True
-
 
 def check_updown_castle(color, board, start, to):
     
@@ -145,7 +145,7 @@ def check_updown_castle(color, board, start, to):
         
     return True
 
-def check_updown(board, start, to):
+def check_updown(board, start, to, verbose=False):
     
     """
     Checks if there are no pieces along the vertical or horizontal path
@@ -166,8 +166,9 @@ def check_updown(board, start, to):
 
         for i in range(smaller_y + 1, bigger_y):
             if board.board[start[0]][i] != None:
-                print(blocked_path)
-                print("At: " + str(start[0], i))
+                if verbose:
+                    print(blocked_path)
+                    print("At: " + str((start[0], i)))
                 return False
         return True
     else:
@@ -176,7 +177,8 @@ def check_updown(board, start, to):
 
         for i in range(smaller_x + 1, bigger_x):
             if board.board[i][start[1]] != None:
-                print(blocked_path)
+                if verbose:
+                    print(blocked_path)
                 return False
         return True
 

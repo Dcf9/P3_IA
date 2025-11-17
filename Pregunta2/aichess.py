@@ -1,19 +1,16 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Created on Thu Sep  8 11:22:03 2022
 
-@author: ignasi
+Practica 3 d'IA: Pregunta 2
+@authors: Pol Lobo & Damia Carreras
+
 """
 import copy
-import math
 
 import chess
 import board
 import numpy as np
-import sys
-import queue
 from typing import List
+from tqdm import trange
 
 RawStateType = List[List[List[int]]]
 
@@ -21,200 +18,115 @@ from itertools import permutations
 
 
 class Aichess():
-    """
-    A class to represent the game of chess.
 
-    ...
-
-    Attributes:
-    -----------
-    chess : Chess
-        represents the chess game
-        
-    listNextStates : list
-        List of next possible states for the current player.
-
-    listVisitedStates : list
-        List of all visited states during A* and other search algorithms.
-
-    listVisitedSituations : list
-        List of visited game situations (state + color) for minimax/alpha-beta pruning.
-
-    pathToTarget : list
-        Sequence of states from the initial state to the target (used by A*).
-
-    depthMax : int
-        Maximum search depth for minimax/alpha-beta searches.
-
-    dictPath : dict
-        Dictionary used to reconstruct the path in A* search.
-
-    Methods:
-    --------
-    copyState(state) -> list
-        Returns a deep copy of the given state.
-
-    getListNextStatesW(myState) -> list
-        Returns a list of possible next states for the white pieces.
-
-    getListNextStatesB(myState) -> list
-        Returns a list of possible next states for the black pieces.
-
-    isSameState(a, b) -> bool
-        Checks whether two states represent the same board configuration.
-
-    isVisited(mystate) -> bool
-        Checks if a given state has been visited in search algorithms.
-
-    getCurrentState() -> list
-        Returns the combined state of both white and black pieces.
-
-    getNextPositions(state) -> list
-        Returns a list of possible next positions for a given state.
-
-    heuristica(currentState, color) -> int
-        Calculates a heuristic value for the current state from the perspective of the given color.
-
-    movePieces(start, depthStart, to, depthTo) -> None
-        Moves all pieces along the path between two states.
-
-    changeState(start, to) -> None
-        Moves a single piece from start state to to state.
-
-    reconstructPath(state, depth) -> None
-        Reconstructs the path from initial state to the target state for A*.
-
-    isWatchedWk(currentState) / isWatchedBk(currentState) -> bool
-        Checks if the white or black king is under threat.
-
-    allWkMovementsWatched(currentState) / allBkMovementsWatched(currentState) -> bool
-        Checks if all moves of the white or black king are under threat.
-
-    isWhiteInCheckMate(currentState) / isBlackInCheckMate(currentState) -> bool
-        Determines if the white or black king is in checkmate.
-
-    minimaxGame(depthWhite: int, depthBlack: int) -> To be implemented by you
-        Simulates a full game using the Minimax algorithm for both white and black.
-
-    alphaBetaPoda(depthWhite: int, depthBlack: int) -> To be implemented by you
-        Simulates a game where both players use Minimax with Alpha-Beta Pruning.
-
-    expectimax(depthWhite: int, depthBlack: int) -> To be implemented by you
-        Simulates a full game where both players use the Expectimax algorithm.
-
-    mean(values: list[float]) -> float
-        Returns the arithmetic mean (average) of a list of numerical values.
-
-    standardDeviation(values: list[float], mean_value: float) -> float
-        Computes the standard deviation of a list of numerical values based on the given mean.
-
-    calculateValue(values: list[float]) -> float
-        Computes the expected value from a set of scores using soft-probabilities 
-        derived from normalized values (exponential weighting). Can be useful for Expectimax.
-
-    """
-
-    def __init__(self, TA, myinit=True):
-
+    def __init__(self, TA, myinit = True):
+        #--------------- Atributs per l'escacs ---------------#
         if myinit:
-            self.chess = chess.Chess(TA, True)
-            self.chess2 = chess.Chess(TA, True)
+            self.chess = chess.Chess(TA, True)  # Tauler (inclou real i simulador)
         else:
-            self.chess = chess.Chess([], False)
-            self.chess2 = chess.Chess([], False)
+            self.chess = chess.Chess([], False) # Tauler buit (inclou real i simulador)
 
-        self.listNextStates = []
-        self.listVisitedStates = []
-        self.listVisitedSituations = []
-        self.pathToTarget = []
-        self.depthMax = 8;
-        # Dictionary to reconstruct the visited path
-        self.dictPath = {}
-        # Prepare a dictionary to control the visited state and at which
-        # depth they were found for DepthFirstSearchOptimized
-        self.dictVisitedStates = {}
+        self.initial_position = self.getCurrentPositionBoard()  # Guardem la posicio inicial
+        #-----------------------------------------------------#
 
-    def copyState(self, state):
+        #-------------- Atributs per Q-learning --------------#
+        self.qTable = None                  # q-table
         
-        copyState = []
-        for piece in state:
-            copyState.append(piece.copy())
-        return copyState
+        self.n_training_episodes = 250
+        self.learning_rate = 0.5            # Taxa d'aprenentage (alpha)
 
-    def getListNextStatesW(self, myState):
+        self.max_steps = 100                # Nombre max de pasos per episodi
+        self.gamma = 0.95                   # Factor de descompte (gamma)
+
+        self.max_epsilon = 0.95             # Probabilitat d'exploracio
+        self.min_epsilon = 0.1             
+        self.decay_rate = 0.01              # Taxa de decaiment de l'epsilon
+        #-----------------------------------------------------#
+
+    #----------------- METODES ESCACS -----------------#
+    # Boards
+    def newBoardSim(self, listPositions):
+        # We create a  new boardSim
+        TA = np.zeros((8, 8))
+        for state in listPositions:
+            TA[state[0]][state[1]] = state[2]
+
+        self.chess.newBoardSim(TA)
+
+    def resetBoard(self):
+        # We reset the board
+        TA = np.zeros((8, 8))
+        for state in self.initial_position:
+            TA[state[0]][state[1]] = state[2]
+
+        self.chess.newBoard(TA)
+
+    # State useful
+    def copyPosition(self, position):
+        copyPosition = []
+        for piece in position:
+            copyPosition.append(piece.copy())
+        return copyPosition
+
+    def getListNextPositionsW(self, myState):
 
         self.chess.boardSim.getListNextStatesW(myState)
         self.listNextStates = self.chess.boardSim.listNextStates.copy()
 
         return self.listNextStates
 
-    def getListNextStatesB(self, myState):
+    def getListNextPositionsB(self, myState):
         self.chess.boardSim.getListNextStatesB(myState)
         self.listNextStates = self.chess.boardSim.listNextStates.copy()
 
         return self.listNextStates
 
-    def isSameState(self, a, b):
-
-        isSameState1 = True
-        # a and b are lists
-        for k in range(len(a)):
-
-            if a[k] not in b:
-                isSameState1 = False
-
-        isSameState2 = True
-        # a and b are lists
-        for k in range(len(b)):
-
-            if b[k] not in a:
-                isSameState2 = False
-
-        isSameState = isSameState1 and isSameState2
-        return isSameState
-
-    def isVisited(self, mystate):
-
-        if (len(self.listVisitedStates) > 0):
-            perm_state = list(permutations(mystate))
-
-            isVisited = False
-            for j in range(len(perm_state)):
-
-                for k in range(len(self.listVisitedStates)):
-
-                    if self.isSameState(list(perm_state[j]), self.listVisitedStates[k]):
-                        isVisited = True
-
-            return isVisited
+    # State of pieces
+    def getNextPositions(self, state):
+        # Given a state, we check the next possible states
+        # From these, we return a list with position, i.e., [row, column]
+        if state == None:
+            return None
+        if state[2] > 6:
+            nextStates = self.getListNextPositionsW([state])
         else:
-            return False 
-
-    def newBoardSim(self, listStates):
-        # We create a  new boardSim
-        TA = np.zeros((8, 8))
-        for state in listStates:
-            TA[state[0]][state[1]] = state[2]
-
-        self.chess.newBoardSim(TA)
-
-    def newBoardSim2(self, listStates):
-        # We create a  new boardSim
-        TA = np.zeros((8, 8))
-        for state in listStates:
-            TA[state[0]][state[1]] = state[2]
-
-        self.chess2.newBoardSim(TA)
-
-    def getPieceState(self, state, piece):
-        pieceState = None
-        for i in state:
+            nextStates = self.getListNextPositionsW([state])
+        nextPositions = []
+        for i in nextStates:
+            nextPositions.append(i[0][0:2])
+        return nextPositions
+    
+    def getPiecePosition(self, pos, piece):
+        """
+        Given a list of the postion (pos) and the id of a piece, 
+        return the position [row, column]
+        """
+        piecePosition = None
+        for i in pos:
             if i[2] == piece:
-                pieceState = i
+                piecePosition = i
                 break
-        return pieceState
+        return piecePosition
+    
+    def getWhitePosition(self, currentPosition):
+        whitePosition = []
+        wkPosition = self.getPiecePosition(currentPosition, 6)
+        whitePosition.append(wkPosition)
+        wkPosition = self.getPiecePosition(currentPosition, 2)
+        if wkPosition != None:
+            whitePosition.append(wkPosition)
+        return whitePosition
 
-    def getCurrentState(self):
+    def getBlackPosition(self, currentPosition):
+        blackPosition = []
+        bkPosition = self.getPiecePosition(currentPosition, 12)
+        blackPosition.append(bkPosition)
+        bkPosition = self.getPiecePosition(currentPosition, 8)
+        if bkPosition != None:
+            blackPosition.append(bkPosition)
+        return blackPosition
+
+    def getCurrentPositionBoard(self):
         listStates = []
         for i in self.chess.board.currentStateW:
             listStates.append(i)
@@ -222,129 +134,23 @@ class Aichess():
             listStates.append(j)
         return listStates
 
-    def getNextPositions(self, state):
-        # Given a state, we check the next possible states
-        # From these, we return a list with position, i.e., [row, column]
-        if state == None:
-            return None
-        if state[2] > 6:
-            nextStates = self.getListNextStatesB([state])
-        else:
-            nextStates = self.getListNextStatesW([state])
-        nextPositions = []
-        for i in nextStates:
-            nextPositions.append(i[0][0:2])
-        return nextPositions
+    def getCurrentPositionSimulator(self):
+        listStates = []
+        for i in self.chess.boardSim.currentStateW:
+            listStates.append(i)
+        for j in self.chess.boardSim.currentStateB:
+            listStates.append(j)
 
-    def getWhiteState(self, currentState):
-        whiteState = []
-        wkState = self.getPieceState(currentState, 6)
-        whiteState.append(wkState)
-        wrState = self.getPieceState(currentState, 2)
-        if wrState != None:
-            whiteState.append(wrState)
-        return whiteState
-
-    def getBlackState(self, currentState):
-        blackState = []
-        bkState = self.getPieceState(currentState, 12)
-        blackState.append(bkState)
-        brState = self.getPieceState(currentState, 8)
-        if brState != None:
-            blackState.append(brState)
-        return blackState
-
-    def getMovement(self, state, nextState):
-        # Given a state and a successor state, return the postiion of the piece that has been moved in both states
-        pieceState = None
-        pieceNextState = None
-        for piece in state:
-            if piece not in nextState:
-                movedPiece = piece[2]
-                pieceNext = self.getPieceState(nextState, movedPiece)
-                if pieceNext != None:
-                    pieceState = piece
-                    pieceNextState = pieceNext
-                    break
-
-        return [pieceState, pieceNextState]
-
-    def movePieces(self, start, depthStart, to, depthTo):
-        
-        # To move from one state to the next we will need to find
-        # the state in common, and then move until the node 'to'
-        moveList = []
-        # We want that the depths are equal to find a common ancestor
-        nodeTo = to
-        nodeStart = start
-        # if the depth of the node To is larger than that of start, 
-        # we pick the ancesters of the node until being at the same
-        # depth
-        while(depthTo > depthStart):
-            moveList.insert(0,to)
-            nodeTo = self.dictPath[str(nodeTo)][0]
-            depthTo-=1
-        # Analogous to the previous case, but we trace back the ancestors
-        #until the node 'start'
-        while(depthStart > depthTo):
-            ancestreStart = self.dictPath[str(nodeStart)][0]
-            # We move the piece the the parerent state of nodeStart
-            self.changeState(nodeStart, ancestreStart)
-            nodeStart = ancestreStart
-            depthStart -= 1
-
-        moveList.insert(0,nodeTo)
-        # We seek for common node
-        while nodeStart != nodeTo:
-            ancestreStart = self.dictPath[str(nodeStart)][0]
-            # Move the piece the the parerent state of nodeStart
-            self.changeState(nodeStart,ancestreStart)
-            # pick the parent of nodeTo
-            nodeTo = self.dictPath[str(nodeTo)][0]
-            # store in the list
-            moveList.insert(0,nodeTo)
-            nodeStart = ancestreStart
-        # Move the pieces from the node in common
-        # until the node 'to'
-        for i in range(len(moveList)):
-            if i < len(moveList) - 1:
-                self.changeState(moveList[i],moveList[i+1])
-
-    def reconstructPath(self, state, depth):
-        # Once the solution is found, reconstruct the path taken to reach it
-        for i in range(depth):
-            self.pathToTarget.insert(0, state)
-            # For each node, retrieve its parent from dictPath
-            state = self.dictPath[str(state)][0]
-
-        # Insert the root node at the beginning
-        self.pathToTarget.insert(0, state)
-
-    def changeState(self, start, to):
-        # Determine which piece has moved from the start state to the next state
-        if start[0] == to[0]:
-            movedPieceStart = 1
-            movedPieceTo = 1
-        elif start[0] == to[1]:
-            movedPieceStart = 1
-            movedPieceTo = 0
-        elif start[1] == to[0]:
-            movedPieceStart = 0
-            movedPieceTo = 1
-        else:
-            movedPieceStart = 0
-            movedPieceTo = 0
-
-        # Move the piece that changed
-        self.chess.moveSim(start[movedPieceStart], to[movedPieceTo])     
-
+        return listStates
+    
+    # Cheecks and checkmates
     def isWatchedBk(self, currentState):
 
         self.newBoardSim(currentState)
 
-        bkPosition = self.getPieceState(currentState, 12)[0:2]
-        wkState = self.getPieceState(currentState, 6)
-        wrState = self.getPieceState(currentState, 2)
+        bkPosition = self.getPiecePosition(currentState, 12)[0:2]
+        wkState = self.getPiecePosition(currentState, 6)
+        wrState = self.getPiecePosition(currentState, 2)
 
         # If the white king has been captured, this is not a valid configuration
         if wkState is None:
@@ -369,16 +175,16 @@ class Aichess():
 
         self.newBoardSim(currentState)
         # Get the current state of the black king
-        bkState = self.getPieceState(currentState, 12)
+        bkState = self.getPiecePosition(currentState, 12)
         allWatched = False
 
         # If the black king is on the edge of the board, all its moves might be under threat
         if bkState[0] == 0 or bkState[0] == 7 or bkState[1] == 0 or bkState[1] == 7:
-            wrState = self.getPieceState(currentState, 2)
-            whiteState = self.getWhiteState(currentState)
+            wrState = self.getPiecePosition(currentState, 2)
+            whiteState = self.getWhitePosition(currentState)
             allWatched = True
             # Get the future states of the black pieces
-            nextBStates = self.getListNextStatesB(self.getBlackState(currentState))
+            nextBStates = self.getListNextPositionsB(self.getBlackPosition(currentState))
 
             for state in nextBStates:
                 newWhiteState = whiteState.copy()
@@ -469,8 +275,204 @@ class Aichess():
         if self.isWatchedWk(currentState) and self.allWkMovementsWatched(currentState):
             return True
         return False
+    #--------------------------------------------------#
     
-    def heuristica(self, currentState, color):
+    #--------------- METODES Q-LEARNING ---------------#
+
+    def initiate_q_table(self):
+        """
+        Accions: (Columnes)
+            (0) Moure Torre Blanca a fila 0
+            (1) Moure Torre Blanca a fila 1
+            (2) Moure Torre Blanca a fila 2
+            (3) Moure Torre Blanca a fila 3
+            (4) Moure Torre Blanca a fila 4
+            (5) Moure Torre Blanca a fila 5
+            (6) Moure Torre Blanca a fila 6
+            (7) Moure Torre Blanca a fila 7
+            (8) Moure Torre Blanca a columna 0
+            (9) Moure Torre Blanca a columna 1
+            (10) Moure Torre Blanca a columna 2
+            (11) Moure Torre Blanca a columna 3
+            (12) Moure Torre Blanca a columna 4
+            (13) Moure Torre Blanca a columna 5
+            (14) Moure Torre Blanca a columna 6
+            (15) Moure Torre Blanca a columna 7
+            (16) Moure Rei Blanc esquerra
+            (17) Moure Rei Blanc diagonal superior esquerra
+            (18) Moure Rei Blanc amunt
+            (19) Moure Rei Blanc diagonal superior dreta
+            (20) Moure Rei Blanc dreta
+            (21) Moure Rei Blanc diagonal inferior dreta
+            (22) Moure Rei Blanc avall
+            (23) Moure Rei Blanc diagonal inferior esquerra
+        
+        Estats: (Files)
+            (0) No hi ha check a les negres
+            (1) Hi ha check a les negres
+            (2) Hi ha chekmate a les negres
+        """
+        # Definim el numero d'accions i estats
+        n_accions = 23
+        n_estats = 3
+
+        self.qTable = np.zeros((n_estats, n_accions))
+
+        print("Q-table initialized: \n", self.qTable)
+
+    def posToState(self, pos):
+        if self.isBlackInCheckMate(pos):
+            return 2
+        elif self.isWatchedBk(pos):
+            return 1
+        else:
+            return 0
+
+    def epsilon_greedy_policy(self, state, epsilon):
+        
+        _, n_actions = self.qTable.shape
+
+        random_value = np.random.uniform(0, 1)
+
+        if random_value < epsilon:
+            action = np.random.randint(n_actions)   # Explorem
+        else:
+            action = np.argmax(self.qTable[state])  # Explotem
+
+        return action
+
+    def greedy_policy(self, state):
+        return np.argmax(self.qTable[state])
+
+    def validateMove(self, originalPos, newPos):
+        newRow, newColumn, piece = newPos
+
+        # No es pot menjar el rei negre
+        bKingPos = self.getPiecePosition(self.getCurrentPositionSimulator(), 12)
+        isValid = (not (newRow < 0 or newRow > 7 or newColumn < 0 or newColumn > 7) and
+            newPos[0:2] != bKingPos[0:2])
+        
+        # El rei no pot apropar-se a mes de 1 casella al rei negre
+        if piece == 6:
+            fila_diff = abs(newPos[0] - bKingPos[0])
+            columna_diff = abs(newPos[1] - bKingPos[1])
+            if fila_diff <= 1 and columna_diff <= 1:
+                isValid = False
+        
+        # No te sentit moure a la mateixa posicio
+        if originalPos == newPos:
+            isValid = False
+
+        return isValid
+
+    def moveSimWithAction(self, action):
+        isMoved = False
+
+        # --- Accions Torre Blanca (pieceID = 2) ---        
+        if 0 <= action <= 15:
+            wRookPos = self.getPiecePosition(self.getCurrentPositionSimulator(), 2)
+
+            newRow = action if action <=7 else wRookPos[0]
+            newColumn = action % 8 if action >=8 else wRookPos[1]
+            
+            newRookPos = [newRow, newColumn, 2]
+
+            if self.validateMove(wRookPos, newRookPos):
+                self.chess.moveSim(wRookPos, newRookPos)
+                isMoved = True
+
+        # --- Accions Rei Blanc (pieceID = 6) ---
+        elif 16 <= action <= 23:
+            wKingPos = self.getPiecePosition(self.getCurrentPositionSimulator(), 6)
+            row, column, _ = wKingPos
+
+            # Moviments del rei
+            movs_rei = {
+                16: (0, -1),   # esquerra
+                17: (-1, -1),  # diagonal superior esquerra
+                18: (-1, 0),   # amunt
+                19: (-1, 1),   # diagonal superior dreta
+                20: (0, 1),    # dreta
+                21: (1, 1),    # diagonal inferior dreta
+                22: (1, 0),    # avall
+                23: (1, -1),   # diagonal inferior esquerra
+            }
+
+            addRow, addColumn = movs_rei[action]
+            newKingPos = [row + addRow, column + addColumn, 6]
+
+            if self.validateMove(wKingPos, newKingPos):
+                self.chess.moveSim(wKingPos, newKingPos)
+                isMoved = True
+
+            return isMoved
+    
+        else:
+            print("Acció no reconeguda:", action)
+
+    def moureTaulellAmbAccio(self, action):
+        isMoved = False
+
+        # --- Accions Torre Blanca (pieceID = 2) ---        
+        if 0 <= action <= 15:
+            wRookPos = self.getPiecePosition(self.getCurrentPositionSimulator(), 2)
+
+            newRow = action if action <=7 else wRookPos[0]
+            newColumn = action % 8 if action >=8 else wRookPos[1]
+            
+            newRookPos = [newRow, newColumn, 2]
+
+            if self.validateMove(wRookPos, newRookPos):
+                self.chess.move(wRookPos, newRookPos)       # Movem
+                self.chess.board.print_board()              # Imprimim
+
+                isMoved = True
+
+        # --- Accions Rei Blanc (pieceID = 6) ---
+        elif 16 <= action <= 23:
+            wKingPos = self.getPiecePosition(self.getCurrentPositionSimulator(), 6)
+            row, column, _ = wKingPos
+
+            # Moviments del rei
+            movs_rei = {
+                16: (0, -1),   # esquerra
+                17: (-1, -1),  # diagonal superior esquerra
+                18: (-1, 0),   # amunt
+                19: (-1, 1),   # diagonal superior dreta
+                20: (0, 1),    # dreta
+                21: (1, 1),    # diagonal inferior dreta
+                22: (1, 0),    # avall
+                23: (1, -1),   # diagonal inferior esquerra
+            }
+
+            addRow, addColumn = movs_rei[action]
+            newKingPos = [row + addRow, column + addColumn, 6]
+
+            if self.validateMove(wKingPos, newKingPos):
+                self.chess.move(wKingPos, newKingPos)       # Movem
+                self.chess.board.print_board()              # Imprimim
+
+                isMoved = True
+
+            return isMoved
+        else:
+            print("Acció no reconeguda:", action)
+
+    def reward_partA(self, currentState, moved):
+        """
+        Simple reward for part A.
+        The goal is checkMate for the whites
+        """
+        if not moved:
+            return -50
+        elif currentState == 0:       # No check
+            return -1
+        elif currentState == 1:     # Check
+            return 1
+        elif currentState == 2:     # Checkmate
+            return 100
+    
+    def reward_partB(self, currentState, color):
         # This method calculates the heuristic value for the current state.
         # The value is initially computed from White's perspective.
         # If the 'color' parameter indicates Black, the final value is multiplied by -1.
@@ -557,482 +559,107 @@ class Aichess():
         # print("Current state for heuristic calculation: ", currentState, value)
 
         return value
-    
-    def mean(self, values):
-        # Calculate the arithmetic mean (average) of a list of numeric values.
-        total = 0
-        n = len(values)
+
+    def doAnEpisode(self, policy, epsilon = None):
+        """
+        Realitza un episodi complet seguint la política donada
+        Policy: 
+            - True: epsilon_greeedy_policy  --> Training
+            - False: greedy_policy          --> Evaluation
+        """
         
-        for i in range(n):
-            total += values[i]
+        if policy:      # Training
+            self.newBoardSim(self.initial_position)     # Reiniciar simulador
 
-        return total / n
+        else:           # Evaluating
+            self.resetBoard()                           # Reiniciar taulell
 
-    def standard_deviation(self, values, mean_value):
-        # Calculate the standard deviation of a list of values.
-            total = 0
-            n = len(values)
+        state = self.posToState(self.initial_position)  # Estat inicial
+        step = 0
 
-            for i in range(n):
-                total += pow(values[i] - mean_value, 2)
+        # Repeat step
+        for step in range(self.max_steps):
+            if policy:                                  # Epsilong-greedy policy
+                action = self.epsilon_greedy_policy(state, epsilon)
 
-            return pow(total / n, 1 / 2)
+                moved = self.moveSimWithAction(action)          # Movem simulador
+                position = self.copyPosition(self.getCurrentPositionSimulator())
 
-    def calculateValue(self, values):
-        # Calculate a weighted expected value based on normalized probabilities. - useful for Expectimax.
+            else:                                       # Greedy policy
+                action = self.greedy_policy(state)
+                
+                moved = self.moureTaulellAmbAccio(action)       # Movem taulell
+                position = self.copyPosition(self.getCurrentPositionBoard())
+
+            newState = self.posToState(position)
+            reward = self.reward_partA(newState, moved)
+
+            # Equacio de Bellman
+            self.qTable[state][action] = self.qTable[state][action] + self.learning_rate * (reward + self.gamma * np.max(self.qTable[newState]) - self.qTable[state][action])
+
+            # if not policy:
+            # print("Initial Position: ", self.initial_position)
+                # print("Acció: ", action)
+            # print("Estat: ", state)
+            # print("newState: ", newState)
+            # print("Reward: ", reward)
+            # print("Position: ", position)
+            # print("Board: ")
+            # self.chess.boardSim.print_board()
+                
+                # input("CONTINUA...")
+
+            if self.isBlackInCheckMate(position):       # Si arribem a checkmate, acabem
+                if (not policy):
+                    print(f"Goal reached in {step+1} steps!")
+                break
+            else:                                       # Si no, actualitzem l'estat
+                state = newState
+
+    def train(self):
+        """
+        Realitza un episodi complet seguint la política donada
+        Policy: 
+            - True: epsilon_greeedy_policy  --> Training
+            - False: greedy_policy          --> Evaluation
+        """
         
-        # Compute mean and standard deviation
-        mean_value = self.mean(values)
-        std_dev = self.standard_deviation(values, mean_value)
+        for episode in trange(self.n_training_episodes):
+            epsilon = self.max_epsilon * np.exp(-self.decay_rate * episode)
 
-        # If all values are equal, the deviation is 0, equal probability
-        if std_dev == 0:
-            return values[0]
+            self.doAnEpisode(True, epsilon)
 
-        expected_value = 0
-        total_weight = 0
-        n = len(values)
+            # Imprimim la taula a meitat d'entrenament
+            if episode == self.n_training_episodes // 2:
+                print(f" In episode {episode}, the Q-table is:\n", self.qTable)
 
-        for i in range(n):
-            # Normalize value using z-score
-            normalized_value = (values[i] - mean_value) / std_dev
-
-            # Convert to a positive weight using e^(-x)
-            positive_weight = pow(1 / math.e, normalized_value)
-
-            # Weighted sum
-            expected_value += positive_weight * values[i]
-            total_weight += positive_weight
-
-        # Final expected value (weighted average)
-        return expected_value / total_weight
-
-#------------ AUXILIAR FUNCTIONS --------
-
-# Checks whether the current state is valid (no moving king under threat and no stalemate)
-    def isValid(self, nextState, color):
-
-        # Color indicates the player that just moved: True for white, False for black
-        # nextState: state we are checking  
-
-        wkWatched = self.isWatchedWk(nextState)
-        bkWatched = self.isWatchedBk(nextState)
-
-        movingKingThreatened = False
-        stalemate = True
-
-        if (color and wkWatched) or (not color and bkWatched):                                      # If the moving king is under threat, invalid state
-            movingKingThreatened = True
-
-
-        if (color and bkWatched) or (not color and wkWatched):                                      # If opponent king is under threat, no stalemate
-            stalemate = False
+    def q_learning(self):
+        # Iniciem q-table
+        self.initiate_q_table()
         
-        elif (color and not bkWatched) or (not color and not wkWatched):                           # If the opponent king is not under threat, we check for stalemate
+        print("Training in process...")
+        self.train()
 
-            possibleMovements = []
+        print("\nFinal q-table: ", self.qTable)
 
-            if (color):                                                                             # If white pieces moved, we check black pieces movements
-                possibleMovements = self.getListNextStatesB(self.getBlackState(nextState))
-                partialState = self.getWhiteState(nextState)
-            else:                                                                                   # If black pieces moved, we check white pieces movements
-                possibleMovements = self.getListNextStatesW(self.getWhiteState(nextState))
-                partialState = self.getBlackState(nextState)
+        print("\nEvaluating the agent...")
 
-            for state in possibleMovements:
+        self.doAnEpisode(False)
 
-                moveColor = not color
-
-                state = self.completeState(state, partialState)
-
-                # We now check if the moving king is under threat in this new state
-                if (moveColor == True and not self.isWatchedWk(state)):
-                    stalemate = False
-                    break
-                elif (moveColor == False and not self.isWatchedBk(state)):
-                    stalemate = False
-                    break
-    
-        return (not movingKingThreatened and not stalemate)
-
-    # This function allows us to complete a partial state (only one color) with the pieces of the other color
-    def completeState(self, partialState, currentState):
-
-        # We need tot deepcopy to avoid modifying the original currentState
-        auxState = currentState.copy()
-    
-        for piece in partialState:
-            for otherPiece in auxState:
-                if (piece[0] == otherPiece[0] and piece[1] == otherPiece[1] and piece[2] != otherPiece[2]):         # Check for possible piece captures
-                    auxState.remove(otherPiece)
-
-        return partialState + auxState
-
-    # This functions checks whether a state has been visited before
-    def isVisited(self, state, exploredStates):
-        return (state in exploredStates)
-
-    # Transforms a state into a normalized tuple representation for consistent comparison, reducing computational cost
-    def normalize_state(self, state):
-        return tuple(sorted((tuple(piece) for piece in state), key=lambda x: x[2]))
-
-#------------ END AUXILIAR FUNCTIONS --------
-
-
-
-#------------ MINIMAX -----------------
-                    
-    def minimax(self, currentState, depth, color, exploredStates, depthMax):
-
-        # Terminal node
-        if (self.isWhiteInCheckMate(currentState) or self.isBlackInCheckMate(currentState) or depth == 0):                                                   
-
-                if (depthMax % 2 == 0):
-                    return (self.heuristica(currentState, True), None)                                                  # Heuristic from white perspective
-                
-                else:
-                    return (-self.heuristica(currentState, False), None)                                                # Heuristic from black perspective
-
-        nextState = None
-
-        # White pieces turn
-        if color:
-
-            value = -math.inf
-            possibleMoves = self.getListNextStatesW(self.getWhiteState(currentState))
-
-            if (len(possibleMoves) > 0):
-
-                for state in possibleMoves:
-
-                    state = self.completeState(state, self.getBlackState(currentState))                                 # Complete the state with black pieces
-                    stateTuple = self.normalize_state(state.copy())                                                     # Get state tuple for comparison
-
-                    if (self.isValid(state, True) and not self.isVisited(stateTuple, exploredStates)):                   # Check if the movement is valid and not visited before
-                        
-                        exploredStates.add(stateTuple)
-                        result = self.minimax(state, depth - 1, False, exploredStates.copy(), depthMax)[0]
-
-                        if (value < result):                                                                            # Get best move for white pieces
-                            value = result
-                            nextState = state.copy()
-
-        # Black pieces turn
-        else:
-            value = math.inf
-            possibleMoves = self.getListNextStatesB(self.getBlackState(currentState))
-
-            if (len(possibleMoves) > 0):
-
-                for state in possibleMoves:
-
-                    state = self.completeState(state, self.getWhiteState(currentState))                                   # Complete the state with white pieces
-                    stateTuple = self.normalize_state(state.copy())
-
-                    if (self.isValid(state, False) and not self.isVisited(stateTuple, exploredStates)):                   # Check if the movement is valid and not visited before
-
-                        exploredStates.add(stateTuple)
-                        result = self.minimax(state, depth - 1, True, exploredStates.copy(), depthMax)[0]
-
-                        if (value > result):                                                                               # Get best move for black pieces
-                            value = result
-                            nextState = state.copy()
-
-        return (value, nextState)
-
-#------------ END MINIMAX -----------------
-
-#------------ AlphaBetaPrunning -----------------
-
-    def alphaBetaPruning(self, currentState, depth, color, exploredStates, depthMax, alpha = -math.inf, beta = math.inf):
-
-        if (self.isWhiteInCheckMate(currentState) or depth == 0):                                                   # Check if terminal state
-
-                if (depthMax % 2 == 0):
-                    return (self.heuristica(currentState, True), None)                                                  # Heuristic from white perspective
-                
-                else:
-                    return (-self.heuristica(currentState, False), None)                                                # Heuristic from black perspective
-
-        nextState = None
-
-        # White pieces turn
-        if color:
-
-            value = -math.inf
-
-            possibleMoves = self.getListNextStatesW(self.getWhiteState(currentState))
-
-            if (len(possibleMoves) > 0):
-
-                for state in possibleMoves:
-
-                    state = self.completeState(state, self.getBlackState(currentState))                                 # Complete the state with black pieces
-
-                    stateTuple = self.normalize_state(state.copy())                                                     # Get state tuple for comparison
-
-                    if (self.isValid(state, True) and not self.isVisited(stateTuple, exploredStates)):                  # Check if the movement is valid and not visited before
-                        
-                        exploredStates.add(stateTuple)
-
-                        result = self.alphaBetaPruning(state, depth - 1, False, exploredStates.copy(), depthMax, alpha, beta)[0]
-
-                        if (value < result):                                                                            # Get best move for white pieces
-                            value = result
-                            nextState = state.copy()
-                        
-                        if (value >= beta):                                                                              # Beta cut-off
-                            break
-                        alpha = max(alpha, value)                                                                        # Update alpha
-
-                if (nextState is None):                                                                                  # If no valid moves or new moves found
-                    return (math.inf, None)                                                                              # Kill the branch by returnin math.inf
-
-            else:
-                return (math.inf, None)                                                                                  # No possible moves
-
-
-        # Black pieces turn
-        else:
-            
-            value = math.inf
-
-            possibleMoves = self.getListNextStatesB(self.getBlackState(currentState))
-
-            if (len(possibleMoves) > 0):
-
-                for state in possibleMoves:
-
-                    state = self.completeState(state, self.getWhiteState(currentState))                                   # Complete the state with white pieces
-                    stateTuple = self.normalize_state(state.copy())
-
-                    if (self.isValid(state, False) and not self.isVisited(stateTuple, exploredStates)):                   # Check if the movement is valid and not visited before
-
-                        exploredStates.add(stateTuple)
-
-                        result = self.alphaBetaPruning(state, depth - 1, True, exploredStates.copy(), depthMax, alpha, beta)[0]
-
-                        if (value > result):                                                                               # Get best move for black pieces
-                            value = result
-                            nextState = state.copy()
-
-                        if (value <= alpha):                                                                              # Alpha cut-off
-                            break
-                        beta = min(beta, value)                                                                           # Update beta
-
-                if (nextState is None):                                                                                     # Kill the branch if no valid moves or new moves found
-                    return (-math.inf, None)
-
-            else:
-                return (-math.inf, None)
-
-        return (value, nextState)
-
-#------------ END AlphaBetaPrunning -----------------
-
-#------------ EXPECTIMAX -----------------
-
-    def expectimax(self, currentState, depth, color, exploredStates, depthMax):   
-        # Terminal node: checkmate or depth limit reached
-        if self.isWhiteInCheckMate(currentState) or self.isBlackInCheckMate(currentState) or depth == 0:
-            # Evaluate from the perspective of the player who started the search
-            if color:
-                return (self.heuristica(currentState, True), None)  # White's perspective
-            else:
-                return (-self.heuristica(currentState, False), None)  # Black's perspective
-
-        nextState = None
-
-        # MAX node: white's turn
-        if color:
-            value = -math.inf
-            possibleMoves = self.getListNextStatesW(self.getWhiteState(currentState))
-
-            for state in possibleMoves:
-                state = self.completeState(state, self.getBlackState(currentState))
-                stateTuple = self.normalize_state(state)
-
-                # Important: if depth == depthMax, we allow revisiting states
-                # This is because a state might be explored in one branch,
-                # but skipping it in another could leave us with no legal moves
-                if self.isValid(state, True) and (not self.isVisited(stateTuple, exploredStates) or depth == depthMax):
-                    newExplored = exploredStates.copy()
-                    newExplored.add(stateTuple)
-
-                    result = self.expectimax(state, depth - 1, False, newExplored, depthMax)[0]
-
-                    if result > value:
-                        value = result
-                        nextState = state.copy()
-
-            # If no valid move was found, evaluate the current state instead
-            if nextState is None:
-                value = self.heuristica(currentState, True)
-
-        # CHANCE node: black's turn
-        else:
-            valuesList = []
-            possibleMoves = self.getListNextStatesB(self.getBlackState(currentState))
-
-            for state in possibleMoves:
-                state = self.completeState(state, self.getWhiteState(currentState))
-                stateTuple = self.normalize_state(state)
-
-                if self.isValid(state, False) and (not self.isVisited(stateTuple, exploredStates) or depth == depthMax):
-                    newExplored = exploredStates.copy()
-                    newExplored.add(stateTuple)
-
-                    result = self.expectimax(state, depth - 1, True, newExplored, depthMax)[0]
-                    valuesList.append(result)
-
-            # If no valid moves were found, evaluate the current state
-            if len(valuesList) == 0:
-                value = self.heuristica(currentState, True)
-            else:
-                value = self.calculateValue(valuesList)
-
-        return (value, nextState)
-
-#------------ END EXPECTIMAX -----------------
-
-#------------ CUSTOM GAME -----------------
-    # This function allows us to customize the game by choosing the depth and algorithm (minimax or alpha-beta prune) for each player
-    # algorithmWhite, algorithmBlack are strings indicating whether to use minimax, alpha-beta pruning or expectimax for each player
-    def customGame(self, depthWhite, depthBlack, algorithmWhite, algorithmBlack):
-
-        currentState = self.getCurrentState()
-
-        validState = self.isValid(currentState, False)                                                                          # Check if initial state is valid
-
-        checkmate = self.isWhiteInCheckMate(currentState) or self.isBlackInCheckMate(currentState)                              # Check if initial state is checkmate
-
-        draw = len(currentState) == 2 and (currentState[0][2] == 6 and currentState[1][2] == 12)                                # Check if initial state is draw (only kings left in this case)  
-
-        moveCnt = 0
-
-        if not validState:
-            print("The initial state is invalid")
-            exit(1)
-
-        elif checkmate:
-            print("Checkmate already at the beginning of the game!!")
-            exit(0)
-
-        elif draw:
-            print("Draw already at the beginning of the game!!")
-            exit(0)
-
-        else:
-
-            visitedStates = []                                                                                                              # List of visited states
-            visitedStates.append(self.normalize_state(currentState.copy()))                                                                 # Save states as normalized tuples for comparison
-            
-            checkmateW = False
-            checkmateB = False
-
-            depthBlack = 2 if (depthWhite % 2 == 0 and depthBlack == 1 and algorithmBlack == 1 and algorithmWhite == 2) else depthBlack
-
-            while (not checkmateW and not checkmateB and not draw):                                                                         # If no checkmate or draw, continue the game
-
-                # White pieces move first
-                if (algorithmWhite == 0):                                                                                                        
-                    value, nextState = self.minimax(currentState, depthWhite, True, set(visitedStates.copy()), depthWhite)                  # Minimax form white pieces
-                elif (algorithmWhite == 1):
-                    value, nextState = self.alphaBetaPruning(currentState, depthWhite, True, set(visitedStates.copy()), depthWhite)         # Alpha-beta pruning for white pieces                                                                                   
-                elif (algorithmWhite == 2):
-                    value, nextState = self.expectimax(currentState, depthWhite, True, set(visitedStates.copy()), depthWhite)
-                if (value == None and nextState == None):                                                                                   # Check if white pieces have available moves
-                    print("White king has no available moves. It's a Stalemate!!")
-                    break
-
-                visitedStates.append(self.normalize_state(nextState.copy()))                                                                # Save new state
-                movement = self.getMovement(currentState, nextState)                                                                        # Get the movement made
-                self.chess.move(movement[0], movement[1])                                                                                   # Update real board                                          
-                currentState = self.getCurrentState()                                                                                       # Update current state
-
-                moveCnt += 1
-
-                print("Board after white pieces move:")                                                                                     # Print out the board to see the new state
-                self.chess.board.print_board()                                                                                              
-                
-                checkmateW = self.isBlackInCheckMate(currentState)                                                                          # Check if black pieces are in checkmate
-
-                draw = (len(currentState) == 2)                                                                                             # Check if there's a draw
-
-                # Black pieces turn
-                if (not checkmateW and not draw):
-
-                    if (algorithmBlack == 0):
-                        value, nextState = self.minimax(currentState, depthBlack, False, set(visitedStates.copy()), depthBlack)             # Minimax for black pieces
-                    elif (algorithmBlack == 1):
-                        value, nextState = self.alphaBetaPruning(currentState, depthBlack, False, set(visitedStates.copy()), depthBlack)    # Alpha-Beta Pruning for black pieces
-                    elif (algorithmBlack == 2):
-                        value, nextState = self.expectimax(currentState, depthBlack, False, set(visitedStates.copy()), depthBlack)
-
-                    if (value == None and nextState == None):                                                                               # Check if black pieces have available moves
-                        print("Black king has no available moves. It's a stalemate!!")
-
-                    visitedStates.append(self.normalize_state(nextState.copy()))                                                            # Save new state
-                    movement = self.getMovement(currentState, nextState)                                                                    # Get the movement made
-                    self.chess.move(movement[0], movement[1])                                                                               # Update real board                                          
-                    currentState = self.getCurrentState()                                                                                   # Update current state
-
-                    print("Board after black pieces move:")                                                                                 # Print out the board to see the new state
-                    self.chess.board.print_board()
-
-                    # Check if white pieces are in checkmate
-                    checkmateB = self.isWhiteInCheckMate(currentState)                                                                      # Check if white pieces are in checkmate
-
-                    draw = len(currentState) == 2                                                                                           # Check if there's a draw
-
-        if (checkmateW):
-            print("White pieces won in ", moveCnt, " moves!!")     
-
-        elif (checkmateB):
-            print("Black pieces won in ", moveCnt, " moves!!")   
-
-        elif (draw):
-            print("The game ended in a draw!!")
-
-#----------- END CUSTOM GAME -----------------
+    #--------------------------------------------------#
 
 if __name__ == "__main__":
-    # if len(sys.argv) < 2:
-    #     sys.exit(usage())
-
-    # Initialize an empty 8x8 chess board
-    TA = np.zeros((8, 8))
-
     # Load initial positions of the pieces
     TA = np.zeros((8, 8))  
 
     TA[7][0] = 2    
-    TA[7][5] = 6   
-    TA[0][7] = 8   
+    TA[7][5] = 6 
     TA[0][5] = 12  
 
-    # Initialise board and print
-    print("starting AI chess... ")
+    # Inicialitzem el board i l'imprimim
+    print("Starting AI chess... ")
     aichess = Aichess(TA, True)
-    print("printing board")
-    aichess.chess.boardSim.print_board()
-    
-    ## Comment and descomment for the exercises
-    ## Dictionary for chossing the algorithm easily 
-    algorithms = {"minimax" : 0, "alphabeta" : 1, "expectimax" : 2}
+    print("\nPrinting board")
+    aichess.chess.board.print_board()
 
-    # Run exercise 1 and 2
-    # print("-----------Running EXERCISE 1 and 2:-----------")
-    # aichess.customGame(4,4,algorithms["minimax"],algorithms["minimax"])
-
-    # Run exercise 3
-    # print("-----------Running EXERCISE 3:-----------")
-    # aichess.customGame(4,4,algorithms["minimax"],algorithms["alphabeta"])
-
-    # Run exercise 4
-    # print("-----------Running EXERCISE 4:-----------")
-    # aichess.customGame(3,3,algorithms["alphabeta"],algorithms["alphabeta"])
-
-    # Run exercise 5
-    print("-----------Running EXERCISE 5:-----------")
-    aichess.customGame(1,5,algorithms["expectimax"], algorithms["alphabeta"])
+    aichess.q_learning()

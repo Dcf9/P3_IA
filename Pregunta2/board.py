@@ -3,51 +3,8 @@ import numpy as np
 
 
 class Board():
-    """
-    A class to represent a chess board.
-
-    ...
-
-    Attributes:
-    -----------
-    board : Board
-        Represents the current state of the main chess board.
-    boardSim : Board
-        A secondary board for move simulations (useful for AI or search algorithms).
-    turn : bool
-        True if it's White's turn, False if it's Black's turn.
-    white_ghost_piece : tuple
-        Coordinates of a white ghost piece for en passant capture.
-    black_ghost_piece : tuple
-        Coordinates of a black ghost piece for en passant capture.
-    currentStateW : list
-        Stores positions of white pieces for AI or search purposes.
-    currentStateB : list
-        Stores positions of black pieces for AI or search purposes.
-
-    Methods:
-    --------
-    __init__(initState, xinit=True) -> None
-        Initializes the board per standard chess rules or from a given matrix.
-
-    isSameState(a: list, b: list) -> bool
-        Compares two board states and returns True if they are identical.
-
-    print_board() -> None
-        Prints the current configuration of the board
-
-    getListNextStatesW() -> list
-        Retrieves the next possible states for white pieces.
-    
-    getListNextStatesB() -> list
-        Retrieves the next possible states for black pieces.
-    """
 
     def __init__(self, initState, xinit=True):
-
-        # initstate
-        # matrix 8x8
-
         """
         Initializes the board per standard chess rules
         """
@@ -160,7 +117,6 @@ class Board():
 
         isSameState = isSameState1 and isSameState2
         return isSameState
-
 
     def getListNextStatesW(self, mypieces):
 

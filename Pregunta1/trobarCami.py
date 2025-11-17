@@ -5,7 +5,6 @@ Practica 3 d'IA: Pregunta 1
 
 """
 
-import math
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle
@@ -50,6 +49,7 @@ class TrobarCami():
         #---------- Atributs pel mapa i el mariner ----------#
         self.sailorPosition = start             # Posició inicial
         self.levelOfDrunknss = levelOfDrunkness # Nivell d'embriaguesa (randomness)
+        self.n_hiting_wall = 0                  # Comptador de cops a la paret
         self.sailorPositionSimulator = start    # Posició inicial per entrenar    
         self.start = start              
         self.goal = goal                        # Posició objectiu
@@ -74,7 +74,7 @@ class TrobarCami():
         self.max_steps = 100                # Nombre maxim de passos per episodi
         self.gamma = 0.95                   # Factor de descompte (gamma)             
 
-        self.max_epsilon = 1             # Probabilitat d'exploració
+        self.max_epsilon = 1               # Probabilitat d'exploració
         self.min_epsilon = 0.1             # Probabilitat mínima d'exploració
         self.decay_rate = 0.01             # Taxa de decaïment d'epsilon
         #-----------------------------------------------------#
@@ -185,7 +185,8 @@ class TrobarCami():
             plt.pause(0.3)                              # Pause per veure el moviment
             return True
         
-        # Moviment no valid i ens quedem a la mateixa posicio
+        # Moviment no valid, ens quedem a la mateixa posicio: es xoca
+        self.n_hiting_wall += 1
         return False
 
     def initiate_q_table(self):
@@ -316,10 +317,6 @@ class TrobarCami():
                 # En el move_simulator ja actualitzem la posicio del simulador
                 newPosition = self.sailorPositionSimulator
 
-                newState = self.posToState[newPosition]
-
-                reward = self.reward(newPosition)
-
             else:
                 action = self.greedy_policy(state)
 
@@ -328,9 +325,9 @@ class TrobarCami():
                 # En el move_sailor ja actualitzem la posicio del mariner
                 newPosition = self.sailorPosition
 
-                newState = self.posToState[newPosition]
+            newState = self.posToState[newPosition]
 
-                reward = self.reward(newPosition)
+            reward = self.reward(newPosition)
 
             # Equacio de Bellman
             self.qTable[state][action] = self.qTable[state][action] + self.learning_rate * (reward + self.gamma * np.max(self.qTable[newState]) - self.qTable[state][action])
@@ -378,8 +375,11 @@ class TrobarCami():
 
         self.doAnEpisode(False)
 
-        # Mapa obert fins que es tranqui
-        plt.show(block=True)
+        print(f"The sailor hit {self.n_hiting_wall} walls!")
+
+        # Mapa obert fins que es tanqui
+        # plt.show(block=True)
+        plt.pause(2)
 
 
 if __name__ == "__main__":

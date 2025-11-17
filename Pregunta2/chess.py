@@ -5,53 +5,6 @@ import numpy as np
 
 
 class Chess():
-    
-    """
-    A class to represent the game of chess.
-    
-    ...
-
- Attributes
-----------
-    board : Board
-        The main chess board.
-    boardSim : Board
-        A secondary board used for simulating moves (e.g., AI, search).
-    turn : bool
-        True if it is white's turn, False if black's turn.
-    white_ghost_piece : tuple or None
-        Coordinates of a white ghost pawn used for en passant, if any.
-    black_ghost_piece : tuple or None
-        Coordinates of a black ghost pawn used for en passant, if any.
-    currentStateW : list
-        Representation of the current white pieces' state (for AI).
-    currentStateB : list
-        Representation of the current black pieces' state (for AI).
-
-    Methods
-    -------
-    __init__(initboard, myinit=True) -> None
-        Initializes the chess game with a given board or the default setup.
-
-    move(start: tuple, to: tuple) -> None
-        Moves a piece on the main board if valid, handling captures, castling,
-        en passant, and updating states.
-
-    moveSim(start: tuple, to: tuple, verbose=True) -> None
-        Simulates a move on the simulation board for AI/search purposes.
-
-    promotion(pos: tuple) -> None
-        Promotes a pawn that reaches the last rank to a chosen piece.
-
-    newBoardSim(initboard) -> None
-        Resets the simulation board to a new initial state.
-
-    getListNextStatesW() -> list
-        Returns possible next states for white (stub, not yet implemented).
-
-    translate(s: str) -> tuple
-        Converts chess coordinates (e.g., '2a') into board indices (row, col).
-"""
 
     def __init__(self, initboard, myinit=True):
         
@@ -75,29 +28,10 @@ class Chess():
     def newBoardSim(self, initboard):
         self.boardSim = board.Board(initboard, False)
 
-    def promotion(self, pos):
-        
-        pawn = None
-        while pawn == None:
-            promote = input("Promote pawn to [Q, R, N, B, P(or nothing)]: ")
-            if promote not in ['Q', 'R', 'N', 'B', 'P', '']:
-                print("Not a valid promotion piece")
-            else:
-                if promote == 'Q':
-                    pawn = piece.Queen(True)
-                elif promote == 'R':
-                    pawn = piece.Rook(True)
-                elif promote == 'N':
-                    pawn = piece.Knight(True)
-                elif promote == 'B':
-                    pawn = piece.Bishop(True)
-                elif promote == 'P' or promote == '': 
-                    pawn = piece.Pawn(True)
-        self.board.board[pos[0]][pos[1]] = pawn
+    def newBoard(self, initboard):
+        self.board = board.Board(initboard, False)
 
-
-    def moveSim(self, start, to, verbose=True):
-        
+    def moveSim(self, start, to, verbose=False):
         """
         Moves a piece at `start` to `to`. Does nothing if there is no piece at the starting point.
         Does nothing if the piece at `start` belongs to the wrong color for the current turn.
@@ -217,9 +151,6 @@ class Chess():
                     self.board.currentStateB[m][0] = to[0]
                     self.board.currentStateB[m][1] = to[1]
                     print("->piece to state ", self.board.currentStateB[m])
-
-    #                   print("Next States: ",self.board.getListNextStatesW(self.board.currentStateW[m]))
-
 
     def move(self, start, to):
 
@@ -357,18 +288,7 @@ class Chess():
             
             if stateEndPiece != None:
                self.board.currentStateB.remove(stateEndPiece)
-
-
-def getListNextStatesW(self):
-
-        """
-        Gets the list of next possible states given the currentStateW
-        
-        """
-       
                 
-
-
 def translate(s):
     """
     Translates traditional board coordinates of chess into list indices
@@ -387,8 +307,6 @@ def translate(s):
     except:
         print(s + "is not in the format '[number][letter]'")
         return None
-
-
 
 if __name__ == "__main__":
 
@@ -418,8 +336,6 @@ if __name__ == "__main__":
     
     # initialize board
     chess = Chess(TA)
-#  chess = Chess([],False)
-        
     
     # print board
     chess.board.print_board()

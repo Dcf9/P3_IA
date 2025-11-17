@@ -232,7 +232,7 @@ class TrobarCami():
 
         random_number = np.random.uniform(0,1)
         if random_number < epsilon:                 # Explorar
-            action = np.random.randint(0,n_actions)     # Accio aleatoria
+            action = np.random.randint(n_actions)       # Accio aleatoria
         else:                                       # Explotar
             action = np.argmax(self.qTable[state])      # Millor accio de la taula Q
 

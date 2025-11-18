@@ -78,7 +78,7 @@ class TrobarCami():
 
         #---------- Atributs pel mapa i el mariner ----------#
         self.sailorPosition = start                                         # Posició inicial
-        self.levelOfDrunknss = levelOfDrunkness                             # Nivell d'embriaguesa (randomness)
+        self.levelOfDrunkness = levelOfDrunkness                             # Nivell d'embriaguesa (randomness)
         self.n_hiting_wall = 0                                              # Comptador de cops a la paret
         self.sailorPositionSimulator = start                                # Posició inicial per entrenar    
         self.start = start              
@@ -247,7 +247,7 @@ class TrobarCami():
         Movem el mariner a la nova posició i actualitzem el dibuix.
         """
         # Randomness per l'embriaguesa
-        if np.random.uniform(0,1) < self.levelOfDrunknss:
+        if np.random.uniform(0,1) < self.levelOfDrunkness:
             action = np.random.randint(0,4)
 
         n_files, n_col = self.map.shape
@@ -283,7 +283,7 @@ class TrobarCami():
         Comprova si es possible fer el moviment en el simulador
         """
         # Randomness per l'embriaguesa
-        if np.random.uniform(0,1) < self.levelOfDrunknss:
+        if np.random.uniform(0,1) < self.levelOfDrunkness:
             action = np.random.randint(0,4)
 
         n_files, n_col = self.map.shape
@@ -388,7 +388,6 @@ class TrobarCami():
             epsilon = self.max_epsilon * np.exp(-self.decay_rate * episode)
 
             # Decreixem la taxa d'aprenentatge al llarg de l'entrenament
-            #TODO: Actualitzar taxa d'aprenentatge al llarg de l'entrenament
             self.learning_rate = self.learning_rate_initial / (1 + episode)
 
             self.doAnEpisode(True, epsilon)

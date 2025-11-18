@@ -19,7 +19,10 @@ from itertools import permutations
 
 class Aichess():
 
-    def __init__(self, TA, myinit = True):
+    def __init__(self, TA, exercici, myinit=True, levelOfDrunkess=0):
+        self.exercici = exercici
+        self.levelOfDrunkness = levelOfDrunkess
+        
         #--------------- Atributs per l'escacs ---------------#
         if myinit:
             self.chess = chess.Chess(TA, True)  # Tauler (inclou real i simulador)
@@ -31,6 +34,8 @@ class Aichess():
 
         #-------------- Atributs per Q-learning --------------#
         self.qTable = None                  # q-table
+        self.intermediateQTable1 = None     # q-table intermitjana 1
+        self.intermediateQTable2 = None     # q-table intermitjana 2
         
         self.n_training_episodes = 250
         self.learning_rate = 0.5            # Taxa d'aprenentage (alpha)
@@ -214,9 +219,9 @@ class Aichess():
     def isWatchedWk(self, currentState):
         self.newBoardSim(currentState)
 
-        wkPosition = self.getPieceState(currentState, 6)[0:2]
-        bkState = self.getPieceState(currentState, 12)
-        brState = self.getPieceState(currentState, 8)
+        wkPosition = self.getPiecePosition(currentState, 6)[0:2]
+        bkState = self.getPiecePosition(currentState, 12)
+        brState = self.getPiecePosition(currentState, 8)
 
         # If the black king has been captured, this is not a valid configuration
         if bkState is None:
@@ -346,27 +351,49 @@ class Aichess():
 
     def validateMove(self, originalPos, newPos):
         newRow, newColumn, piece = newPos
-
+        
+        # Posicio dins del taulell
+        isValid = not (newRow < 0 or newRow > 7 or newColumn < 0 or newColumn > 7)
+        
         # No es pot menjar el rei negre
-        bKingPos = self.getPiecePosition(self.getCurrentPositionSimulator(), 12)
-        isValid = (not (newRow < 0 or newRow > 7 or newColumn < 0 or newColumn > 7) and
-            newPos[0:2] != bKingPos[0:2])
+        if isValid:
+            bKingPos = self.getPiecePosition(self.getCurrentPositionSimulator(), 12)
+            isValid = newPos[0:2] != bKingPos[0:2]
+
+        # No es pot menjar una peca amiga
+        if isValid:
+            for state in self.getWhitePosition(self.getCurrentPositionSimulator()):
+                if newPos[0:2] == state[0:2] and isValid:
+                    isValid = False
+                    break     
         
         # El rei no pot apropar-se a mes de 1 casella al rei negre
-        if piece == 6:
+        if piece == 6 and isValid:
             fila_diff = abs(newPos[0] - bKingPos[0])
             columna_diff = abs(newPos[1] - bKingPos[1])
             if fila_diff <= 1 and columna_diff <= 1:
                 isValid = False
         
         # No te sentit moure a la mateixa posicio
-        if originalPos == newPos:
+        if originalPos == newPos and isValid:
             isValid = False
+
+        # El rei blanc no es pot moure a un escac
+        if piece == 6 and isValid:
+            tempPosition = self.copyPosition(self.getCurrentPositionSimulator())
+            tempPosition.remove(originalPos)
+            tempPosition.append(newPos)
+            if self.isWatchedWk(tempPosition):
+                isValid = False
 
         return isValid
 
     def moveSimWithAction(self, action):
         isMoved = False
+
+        # Randomness per l'embriaguesa
+        if np.random.uniform(0,1) < self.levelOfDrunkness:
+            action = np.random.randint(0,self.qTable.shape[1])
 
         # --- Accions Torre Blanca (pieceID = 2) ---        
         if 0 <= action <= 15:
@@ -412,6 +439,10 @@ class Aichess():
 
     def moureTaulellAmbAccio(self, action):
         isMoved = False
+
+        # Randomness per l'embriaguesa
+        if np.random.uniform(0,1) < self.levelOfDrunkness:
+            action = np.random.randint(0,self.qTable.shape[1])
 
         # --- Accions Torre Blanca (pieceID = 2) ---        
         if 0 <= action <= 15:
@@ -472,17 +503,20 @@ class Aichess():
         elif currentState == 2:     # Checkmate
             return 100
     
-    def reward_partB(self, currentState, color):
+    def reward_partB(self, currentState, moved):
         # This method calculates the heuristic value for the current state.
         # The value is initially computed from White's perspective.
         # If the 'color' parameter indicates Black, the final value is multiplied by -1.
 
         value = 0
 
-        bkState = self.getPieceState(currentState, 12)  # Black King
-        wkState = self.getPieceState(currentState, 6)   # White King
-        wrState = self.getPieceState(currentState, 2)   # White Rook
-        brState = self.getPieceState(currentState, 8)   # Black Rook
+        if not moved:
+            value -= 50
+
+        bkState = self.getPiecePosition(currentState, 12)  # Black King
+        wkState = self.getPiecePosition(currentState, 6)   # White King
+        wrState = self.getPiecePosition(currentState, 2)   # White Rook
+        brState = self.getPiecePosition(currentState, 8)   # Black Rook
 
         filaBk, columnaBk = bkState[0], bkState[1]
         filaWk, columnaWk = wkState[0], wkState[1]
@@ -552,12 +586,6 @@ class Aichess():
         if (self.isWhiteInCheckMate(currentState)):
             value -= 1000    
 
-        # If the current player is Black, invert the heuristic value.
-        if not color:
-            value *= -1
-
-        # print("Current state for heuristic calculation: ", currentState, value)
-
         return value
 
     def doAnEpisode(self, policy, epsilon = None):
@@ -592,14 +620,18 @@ class Aichess():
                 position = self.copyPosition(self.getCurrentPositionBoard())
 
             newState = self.posToState(position)
-            reward = self.reward_partA(newState, moved)
+
+            if self.exercici == "a":
+                reward = self.reward_partA(newState, moved)
+            elif self.exercici == "b":
+                reward = self.reward_partB(position, moved)
 
             # Equacio de Bellman
             self.qTable[state][action] = self.qTable[state][action] + self.learning_rate * (reward + self.gamma * np.max(self.qTable[newState]) - self.qTable[state][action])
 
             # if not policy:
             # print("Initial Position: ", self.initial_position)
-                # print("Acció: ", action)
+            # print("Acció: ", action)
             # print("Estat: ", state)
             # print("newState: ", newState)
             # print("Reward: ", reward)
@@ -607,7 +639,7 @@ class Aichess():
             # print("Board: ")
             # self.chess.boardSim.print_board()
                 
-                # input("CONTINUA...")
+            # input("CONTINUA...")
 
             if self.isBlackInCheckMate(position):       # Si arribem a checkmate, acabem
                 if (not policy):
@@ -631,8 +663,8 @@ class Aichess():
 
             # Imprimim la taula a meitat d'entrenament
             if episode == self.n_training_episodes // 2:
-                print(f" In episode {episode}, the Q-table is:\n", self.qTable)
-
+                self.intermediate_qtable = self.qTable.copy()
+                
     def q_learning(self):
         # Iniciem q-table
         self.initiate_q_table()
@@ -640,8 +672,10 @@ class Aichess():
         print("Training in process...")
         self.train()
 
-        print("\nFinal q-table: ", self.qTable)
+        print(f" In episode {self.n_training_episodes // 2}, the Q-table is:\n", self.intermediate_qtable)
 
+        print("\nFinal q-table: \n", self.qTable)
+        
         print("\nEvaluating the agent...")
 
         self.doAnEpisode(False)
@@ -652,13 +686,31 @@ if __name__ == "__main__":
     # Load initial positions of the pieces
     TA = np.zeros((8, 8))  
 
-    TA[7][0] = 2    
-    TA[7][5] = 6 
-    TA[0][5] = 12  
+    # Configuració inicial de la practica config
+    configPractica = 1
+
+    if configPractica == 1:
+        TA[7][0] = 2    
+        TA[7][5] = 6 
+        TA[0][5] = 12 
+    elif configPractica == 2:
+        TA[7][0] = 2    
+        TA[7][4] = 6 
+        TA[0][7] = 8
+        TA[0][4] = 12 
 
     # Inicialitzem el board i l'imprimim
     print("Starting AI chess... ")
-    aichess = Aichess(TA, True)
+
+    # Exercici 2.a)
+    aichess = Aichess(TA, "a", True)
+
+    # Exercici 2.b)
+    # aichess = Aichess(TA, "b", True)
+
+    # Exercici 2.c)
+    # aichess = Aichess(TA, "a", True, 0.01)
+
     print("\nPrinting board")
     aichess.chess.board.print_board()
 

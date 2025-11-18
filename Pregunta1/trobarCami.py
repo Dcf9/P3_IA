@@ -9,12 +9,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Circle
 from tqdm import trange
+import copy
 
 
 class TrobarCami():
     """
 
-    Atributes
+    Atributs
     -------------------------------------------
     start : tuple
         Posició d'inici
@@ -26,7 +27,7 @@ class TrobarCami():
         Nivell d'embriaguesa (randomness)
     -------------------------------------------
         
-    Methods
+    Mètodes
     -------------------------------------------
     initial_position() -> None
         Inicialitza l'estat segons l'exercici escollit (a o b)
@@ -76,36 +77,38 @@ class TrobarCami():
     def __init__(self, start, goal, exercici, levelOfDrunkness=0):
 
         #---------- Atributs pel mapa i el mariner ----------#
-        self.sailorPosition = start                                 # Posició inicial
-        self.levelOfDrunknss = levelOfDrunkness                     # Nivell d'embriaguesa (randomness)
-        self.n_hiting_wall = 0                                      # Comptador de cops a la paret
-        self.sailorPositionSimulator = start                        # Posició inicial per entrenar    
+        self.sailorPosition = start                                         # Posició inicial
+        self.levelOfDrunknss = levelOfDrunkness                             # Nivell d'embriaguesa (randomness)
+        self.n_hiting_wall = 0                                              # Comptador de cops a la paret
+        self.sailorPositionSimulator = start                                # Posició inicial per entrenar    
         self.start = start              
-        self.goal = goal                                            # Posició objectiu
-        self.exercici = exercici                                    # Exercici a o b
+        self.goal = goal                                                    # Posició objectiu
+        self.exercici = exercici                                            # Exercici a o b
+        self.accions = {0: "Amunt", 1: "Avall", 2: "Esquerra", 3: "Dreta"}  # Accions possibles
 
         self.map = None
-        self.initial_position()                                     # Graella inicial amb les recompenses en funció de l'exercici
+        self.initial_position()                                             # Graella inicial amb les recompenses en funció de l'exercici
 
-        self.initiate_map()                                         # Dibuixem la graella
+        self.initiate_map()                                                 # Dibuixem la graella
         #-----------------------------------------------------#
 
         #-------------- Atributs per Q-learning --------------#
-        self.qTable = None                                          # Taula Q
-        self.posToState = {}                                        # Diccionari d'estats per la taula Q
-        self.stateToPos = {}                                        # Diccionari de posicions per la taula Q
+        self.qTable = None                                                  # Taula Q
+        self.intermediateQTable = None                                      # Taula Q intermèdia
+        self.posToState = {}                                                # Diccionari d'estats per la taula Q
+        self.stateToPos = {}                                                # Diccionari de posicions per la taula Q
 
-        self.n_training_episodes = 1000                             # Nombre d'episodis d'entrenament
-        self.learning_rate = 0.5                                    # Taxa d'aprenentatge (alpha)
+        self.n_training_episodes = 1000                                     # Nombre d'episodis d'entrenament
+        self.learning_rate = 0.5                                            # Taxa d'aprenentatge (alpha)
 
-        self.n_eval_parametres = 100                                # Nombre d'episodis per avaluar
+        self.n_eval_parametres = 100                                        # Nombre d'episodis per avaluar
 
-        self.max_steps = 100                                        # Nombre màxim d'iteracions per episodi
-        self.gamma = 0.95                                           # Factor de descompte (gamma)             
+        self.max_steps = 100                                                # Nombre màxim d'iteracions per episodi
+        self.gamma = 0.99                                                   # Factor de descompte (gamma)             
 
-        self.max_epsilon = 1                                        # Probabilitat d'exploració
-        self.min_epsilon = 0.1                                      # Probabilitat mínima d'exploració
-        self.decay_rate = 0.01                                      # Taxa de decaiguda d'epsilon
+        self.max_epsilon = 1                                                # Probabilitat d'exploració
+        self.min_epsilon = 0.1                                              # Probabilitat mínima d'exploració
+        self.decay_rate = 0.01                                              # Taxa de decaiguda d'epsilon
         #-----------------------------------------------------#
 
     def initial_position(self):
@@ -164,7 +167,7 @@ class TrobarCami():
         # Inicialitzem la taula Q amb zeros
         self.qTable = np.zeros((comptador_estats, 4))
 
-        print("Q-table initialized: \n", self.qTable)
+        print("\nQ-table inicialitzada: \n", self.qTable)
 
     def print_map(self):
         """
@@ -326,6 +329,8 @@ class TrobarCami():
             - False: greedy_policy          --> Deployment
         """
         
+        sequence = []
+
         # Inicialitzem l'episodi
         if policy:
             self.sailorPositionSimulator = self.start
@@ -362,19 +367,15 @@ class TrobarCami():
 
             reward = self.reward(newPosition)
 
+            sequence.append(self.accions[action])
+
             # Equacio de Bellman
             self.qTable[state][action] = self.qTable[state][action] + self.learning_rate * (reward + self.gamma * np.max(self.qTable[newState]) - self.qTable[state][action])
 
-            # if not policy:
-            #     print("Acció: ", action)
-            #     print("Estat: ", state)
-            #     print("newState: ", newState)
-                
-            #     input("CONTINUA...")
-
             if self.goalReached(newPosition):   # Si arribem a goal, acabem
                 if (not policy):
-                    print(f"Goal reached in {step+1} steps!")
+                    print(f"Objectiu assolit en {step+1} passes!")
+                    print("Seqüència d'accions: ", sequence)
                 break
             else:                               # Si no, actualitzem l'estat
                 state = newState
@@ -389,18 +390,21 @@ class TrobarCami():
 
             # Imprimim la taula a meitat d'entrenament
             if episode == self.n_training_episodes // 2:
-                print(f" In episode {episode}, the Q-table is:\n", self.qTable)
+                self.intermediateQTable = copy.deepcopy(self.qTable)
 
     def q_learning(self):
         
         self.initiate_q_table()
 
-        print("\nTraining in process...")
+        print("\nEntrenament en procés...")
         self.train()
 
-        self.print_q_table()
+        print("\nQ-Table a meitat d'entrenament: \n", self.intermediateQTable)
 
-        print("\nEvaluating the agent...\n")
+        # Taula Q final
+        print("\nQ-Table final: \n", self.qTable)
+
+        print("\nAvaluant l'agent...\n")
 
         # Mostrem el mapa sense bloquejar el codi
         plt.show()
@@ -408,15 +412,17 @@ class TrobarCami():
 
         self.doAnEpisode(False)
 
-        print(f"The sailor hit {self.n_hiting_wall} walls!")
+        print(f"El mariner ha xocat {self.n_hiting_wall} cops amb la paret!")
 
         # Mapa obert fins que es tanqui
         # plt.show(block=True)
         plt.pause(2)
 
 if __name__ == "__main__":
+
     # Creem la instància de la classe
-    # Amb l'estat inicial de l'exercici a) o b)
+
+    # Amb la graella de l'exercici a) o b)
 
     # Posició inicial
     start = (2, 0)    

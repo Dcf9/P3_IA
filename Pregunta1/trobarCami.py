@@ -100,11 +100,12 @@ class TrobarCami():
 
         self.n_training_episodes = 1000                                     # Nombre d'episodis d'entrenament
         self.learning_rate = 0.5                                            # Taxa d'aprenentatge (alpha)
+        self.learning_rate_initial = 0.3                                    # Taxa d'aprenentatge inicial (alpha)
 
         self.n_eval_parametres = 100                                        # Nombre d'episodis per avaluar
 
         self.max_steps = 100                                                # Nombre màxim d'iteracions per episodi
-        self.gamma = 0.99                                                   # Factor de descompte (gamma)             
+        self.gamma = 0.95                                                   # Factor de descompte (gamma)             
 
         self.max_epsilon = 1                                                # Probabilitat d'exploració
         self.min_epsilon = 0.1                                              # Probabilitat mínima d'exploració
@@ -385,6 +386,10 @@ class TrobarCami():
             # Al principi ens interessa explorar més que explotar
             # Després ens interessa més explotar que explorar
             epsilon = self.max_epsilon * np.exp(-self.decay_rate * episode)
+
+            # Decreixem la taxa d'aprenentatge al llarg de l'entrenament
+            #TODO: Actualitzar taxa d'aprenentatge al llarg de l'entrenament
+            self.learning_rate = self.learning_rate_initial / (1 + episode)
 
             self.doAnEpisode(True, epsilon)
 

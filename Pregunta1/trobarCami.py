@@ -104,7 +104,7 @@ class TrobarCami():
         self.n_eval_parametres = 100                                        # Nombre d'episodis per avaluar
 
         self.max_steps = 100                                                # Nombre màxim d'iteracions per episodi
-        self.gamma = 0.99                                                   # Factor de descompte (gamma)             
+        self.gamma = 0.95                                                   # Factor de descompte (gamma)             
 
         self.max_epsilon = 1                                                # Probabilitat d'exploració
         self.min_epsilon = 0.1                                              # Probabilitat mínima d'exploració

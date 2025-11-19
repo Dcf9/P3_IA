@@ -12,6 +12,42 @@ from tqdm import trange
 import copy
 
 
+
+
+# Funció de benchmark per comparar diferents paràmetres
+def benchmark(start, goal, alpha, gamma, epsilon, exercici, repetitions = 100, level_of_drunkness=0.0):
+    """
+    Funció per benchmark
+    """
+
+    total_episodes = 0
+
+    for i in range(repetitions):
+
+        # Creem la instància de la classe
+        bench = TrobarCami(start, goal, exercici, level_of_drunkness)
+
+        # Configurem els paràmetres
+        bench.learning_rate_initial = alpha
+        bench.gamma = gamma
+        bench.min_epsilon = epsilon
+
+        # Iniciem la taula Q
+        bench.initiate_q_table()
+
+        # Entrenem l'agent
+        bench.testing()
+
+        # Acumulem el nombre d'episodis
+        total_episodes += bench.episodes
+
+    # Calculem la mitjana d'episodis
+    avg_episodes = total_episodes / repetitions
+
+    print("Average episodes to reach goal over", repetitions, "runs:", avg_episodes)
+
+
+
 class TrobarCami():
     """
 
@@ -101,19 +137,22 @@ class TrobarCami():
         self.stateToPos = {}                                                # Diccionari de posicions per la taula Q
 
         self.n_training_episodes = 1000                                     # Nombre d'episodis d'entrenament
-        self.learning_rate = 0.5                                            # Taxa d'aprenentatge (alpha)
-        self.learning_rate_initial = 0.3                                    # Taxa d'aprenentatge inicial (alpha)
+        self.learning_rate = 0                                              # Taxa d'aprenentatge (alpha)
+        self.learning_rate_initial = 0.5                                    # Taxa d'aprenentatge inicial (alpha)
+        self.learning_rate_min = 0.1                                        # Taxa d'aprenentatge mínima (alpha)
+        self.learning_decay = 0.001                                         # Decaiguda de la taxa d'aprenentatge
 
         self.n_eval_parametres = 100                                        # Nombre d'episodis per avaluar
 
         self.max_steps = 100                                                # Nombre màxim d'iteracions per episodi
-        self.gamma = 0.9                                                    # Factor de descompte (gamma)             
+        self.gamma = 0.95                                                    # Factor de descompte (gamma)             
 
+        self.epsilon = 1                                                     # Probabilitat d'exploració inicial
         self.max_epsilon = 1                                                # Probabilitat d'exploració
         self.min_epsilon = 0.1                                              # Probabilitat mínima d'exploració
         self.decay_rate = 0.01                                              # Taxa de decaiguda d'epsilon
 
-        self.delta = 1e-3                                                   # Criteri de convergència
+        self.delta = 1e-4                                                   # Criteri de convergència
         self.episodes = 0                                                   # Comptador d'episodis            
         #-----------------------------------------------------#
 
@@ -173,7 +212,7 @@ class TrobarCami():
         # Inicialitzem la taula Q amb zeros
         self.qTable = np.zeros((comptador_estats, 4))
 
-        print("\nQ-table inicialitzada: \n", self.qTable)
+        # print("\nQ-table inicialitzada: \n", self.qTable)
 
     def print_map(self):
         """
@@ -220,6 +259,9 @@ class TrobarCami():
         self.ax.set_ylim(n_files-0.5, -0.5)
 
     def print_q_table(self):
+        """
+        Mostra la Q-Table per terminal.
+        """
         print("Q-table: \n", self.qTable)
     
     def epsilon_greeedy_policy(self, state, epsilon):
@@ -327,7 +369,9 @@ class TrobarCami():
         """
         return position == self.goal
 
-    def doAnEpisode(self, policy, epsilon = None):
+
+    # TODO: Revisar steps
+    def doAnEpisode(self, policy):
         """
         Realitza un episodi complet seguint la política donada
         Policy: 
@@ -353,7 +397,7 @@ class TrobarCami():
 
             if policy:
 
-                action = self.epsilon_greeedy_policy(state, epsilon)
+                action = self.epsilon_greeedy_policy(state, self.epsilon)
                 
                 self.move_simulator(action)
 
@@ -387,28 +431,37 @@ class TrobarCami():
                 state = newState
 
     def train(self):
+        """
+        Entrena l'agent fins a obtenir la convergència a la taula Q.
+        """
 
+        # Contador de convergència que ens permet saber quan s'ha arribat a la convergència 
         convergence_cnt = 0
 
 
-        while (convergence_cnt < 5):
+        # Si la taula Q no canvia en 5 episodis seguits, considerem que ha convergit
+        while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
 
             # Al principi ens interessa explorar més que explotar
             # Després ens interessa més explotar que explorar
-            epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
+            self.epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
 
             # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
-            self.learning_rate = self.learning_rate_initial / np.sqrt(1 + self.episodes)
+            self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
 
+            # Actualitzem la taula Q antiga
             oldQTable = self.qTable.copy()
 
             # Realitzem un episodi d'entrenament
-            self.doAnEpisode(True, epsilon)
+            self.doAnEpisode(True)
 
+            # Comprovem la convergència
             if (self.converge(oldQTable, self.qTable)):
                 convergence_cnt += 1
             else:
                 convergence_cnt = 0
+
+            # Actualitzem el comptador d'episodis    
             self.episodes += 1
 
 
@@ -419,25 +472,22 @@ class TrobarCami():
         #     # self.intermediateQTable2 = copy.deepcopy(self.qTable)
         #     self.intermediateQTable2 = self.qTable.copy()
 
-        print("Taula Q final després de l'entrenament: \n", self.qTable)
-        print("Taula Q inicial: \n", oldQTable)
 
         print("\nEntrenament finalitzat.")
 
         print("Nombre d'episodis d'entrenament:", self.episodes)
 
-
-
     def converge(self, oldQTable, newQTable):
 
+        # Comprova si la taula Q ha canviat menys que el delta definit
         return np.max(np.abs(newQTable - oldQTable)) < self.delta
-
-
 
     def q_learning(self):
         
+        # Inicialitzem la taula Q
         self.initiate_q_table()
 
+        # Entrenem l'agent
         print("\nEntrenament en procés...")
         self.train()
 
@@ -454,6 +504,7 @@ class TrobarCami():
         plt.show()
         plt.pause(1)    # Esperem perquè s'obri
 
+        # Avaluem l'agent amb la política greedy
         self.doAnEpisode(False)
 
         print(f"El mariner ha xocat {self.n_hiting_wall} cops amb la paret!")
@@ -461,6 +512,34 @@ class TrobarCami():
         # Mapa obert fins que es tanqui
         # plt.show(block=True)
         plt.pause(2)
+
+
+
+    def testing(self):
+
+            convergence_cnt = 0
+
+
+            while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
+
+                # Al principi ens interessa explorar més que explotar
+                # Després ens interessa més explotar que explorar
+                self.epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
+
+                # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
+                self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
+
+                oldQTable = self.qTable.copy()
+
+                # Realitzem un episodi d'entrenament
+                self.doAnEpisode(True)
+
+                # Comprovem la convergència
+                if (self.converge(oldQTable, self.qTable)):
+                    convergence_cnt += 1
+                else:
+                    convergence_cnt = 0
+                self.episodes += 1
 
 if __name__ == "__main__":
 
@@ -473,10 +552,12 @@ if __name__ == "__main__":
 
     # Posició objectiu         
     goal = (0, 3)
+
+    exercici = "a"
     
 
     # EXERCICI 1.a)
-    cami = TrobarCami(start, goal, "a")
+    # cami = TrobarCami(start, goal, "a")
 
     # EXERCICI 1.b)
     # cami = TrobarCami(start, goal, "b")
@@ -484,4 +565,8 @@ if __name__ == "__main__":
     # EXERCICI 1.c)
     # cami = TrobarCami(start, goal, "b", 0.01)
 
-    cami.q_learning()
+    # cami.q_learning()
+
+    # FUNCIÓ BENCHMARK
+    benchmark(start, goal, 1, 0.95, 0.1, exercici, 200)
+    

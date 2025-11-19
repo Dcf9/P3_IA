@@ -94,7 +94,9 @@ class TrobarCami():
 
         #-------------- Atributs per Q-learning --------------#
         self.qTable = None                                                  # Taula Q
-        self.intermediateQTable = None                                      # Taula Q intermèdia
+        self.intermediateQTable1 = None                                     # Taula Q intermitja 1
+        self.intermediateQTable2 = None                                     # Taula Q intermitja 2
+
         self.posToState = {}                                                # Diccionari d'estats per la taula Q
         self.stateToPos = {}                                                # Diccionari de posicions per la taula Q
 
@@ -105,11 +107,14 @@ class TrobarCami():
         self.n_eval_parametres = 100                                        # Nombre d'episodis per avaluar
 
         self.max_steps = 100                                                # Nombre màxim d'iteracions per episodi
-        self.gamma = 0.95                                                   # Factor de descompte (gamma)             
+        self.gamma = 0.9                                                    # Factor de descompte (gamma)             
 
         self.max_epsilon = 1                                                # Probabilitat d'exploració
         self.min_epsilon = 0.1                                              # Probabilitat mínima d'exploració
         self.decay_rate = 0.01                                              # Taxa de decaiguda d'epsilon
+
+        self.delta = 1e-3                                                   # Criteri de convergència
+        self.episodes = 0                                                   # Comptador d'episodis            
         #-----------------------------------------------------#
 
     def initial_position(self):
@@ -382,20 +387,52 @@ class TrobarCami():
                 state = newState
 
     def train(self):
-        for episode in trange(self.n_training_episodes):
+
+        convergence_cnt = 0
+
+
+        while (convergence_cnt < 5):
+
             # Al principi ens interessa explorar més que explotar
             # Després ens interessa més explotar que explorar
-            epsilon = self.max_epsilon * np.exp(-self.decay_rate * episode)
+            epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
 
-            # Decreixem la taxa d'aprenentatge al llarg de l'entrenament
-            #TODO: Actualitzar taxa d'aprenentatge al llarg de l'entrenament
-            self.learning_rate = self.learning_rate_initial / (1 + episode)
+            # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
+            self.learning_rate = self.learning_rate_initial / np.sqrt(1 + self.episodes)
 
+            oldQTable = self.qTable.copy()
+
+            # Realitzem un episodi d'entrenament
             self.doAnEpisode(True, epsilon)
 
-            # Imprimim la taula a meitat d'entrenament
-            if episode == self.n_training_episodes // 2:
-                self.intermediateQTable = copy.deepcopy(self.qTable)
+            if (self.converge(oldQTable, self.qTable)):
+                convergence_cnt += 1
+            else:
+                convergence_cnt = 0
+            self.episodes += 1
+
+
+        # # Imprimim la taula a meitat d'entrenament
+        # if episode == int(self.n_training_episodes // 3):
+        #     self.intermediateQTable = copy.deepcopy(self.qTable)
+        # elif episode == 2 * int(self.n_training_episodes // 3):
+        #     # self.intermediateQTable2 = copy.deepcopy(self.qTable)
+        #     self.intermediateQTable2 = self.qTable.copy()
+
+        print("Taula Q final després de l'entrenament: \n", self.qTable)
+        print("Taula Q inicial: \n", oldQTable)
+
+        print("\nEntrenament finalitzat.")
+
+        print("Nombre d'episodis d'entrenament:", self.episodes)
+
+
+
+    def converge(self, oldQTable, newQTable):
+
+        return np.max(np.abs(newQTable - oldQTable)) < self.delta
+
+
 
     def q_learning(self):
         
@@ -404,7 +441,9 @@ class TrobarCami():
         print("\nEntrenament en procés...")
         self.train()
 
-        print("\nQ-Table a meitat d'entrenament: \n", self.intermediateQTable)
+        # print("\nQ-Table a 1/3 d'entrenament: \n", self.intermediateQTable)
+
+        # print("\nQ-Table a 2/3 d'entrenament: \n", self.intermediateQTable2)
 
         # Taula Q final
         print("\nQ-Table final: \n", self.qTable)
@@ -437,12 +476,12 @@ if __name__ == "__main__":
     
 
     # EXERCICI 1.a)
-    # cami = TrobarCami(start, goal, "a")
+    cami = TrobarCami(start, goal, "a")
 
     # EXERCICI 1.b)
-    # cami = TrobarCami(start, (goal, "b")
+    # cami = TrobarCami(start, goal, "b")
 
     # EXERCICI 1.c)
-    cami = TrobarCami(start, goal, "b", 0.01)
+    # cami = TrobarCami(start, goal, "b", 0.01)
 
     cami.q_learning()

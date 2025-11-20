@@ -411,7 +411,7 @@ class TrobarCami():
 
         # Si la taula Q no canvia en 5 episodis seguits, considerem que ha convergit
         # while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
-        while (convergence_cnt < 10 and self.episodes < self.n_training_episodes):
+        while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
 
             # Al principi ens interessa explorar més que explotar
             # Després ens interessa més explotar que explorar
@@ -575,8 +575,8 @@ if __name__ == "__main__":
     
 
     # EXERCICI 1.a)
-    # cami = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3)
-    # cami.q_learning()
+    cami = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3)
+    cami.q_learning()
 
 
     # EXERCICI 1.b)
@@ -592,11 +592,11 @@ if __name__ == "__main__":
 
     # FUNCIÓ BENCHMARK PER COMPARAR DIFERENTS PARÀMETRES
 
-    repetitions = 5000
+    # repetitions = 5000
 
     # Exericici a
-    test = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3, False)
-    test.benchmark(repetitions)
+    # test = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3, False)
+    # test.benchmark(repetitions)
 
     # Exercici b
     # test = TrobarCami(start, goal, "b", 0.7, 0.0001, 0.4, 0.2, 0.002, 1e-3, True)

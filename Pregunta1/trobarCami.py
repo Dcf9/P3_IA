@@ -91,7 +91,7 @@ class TrobarCami():
         self.initial_position()                                             # Graella inicial amb les recompenses en funció de l'exercici
 
         if (not self.test):
-            self.initiate_map()                                                 # Dibuixem la graella
+            self.initiate_map()                                             # Dibuixem la graella
         #-----------------------------------------------------#
 
         #-------------- Atributs per Q-learning --------------#
@@ -338,8 +338,6 @@ class TrobarCami():
         """
         return position == self.goal
 
-
-    # TODO: Revisar steps
     def doAnEpisode(self, policy):
         """
         Realitza un episodi complet seguint la política donada
@@ -485,10 +483,10 @@ class TrobarCami():
         plt.pause(2)
 
 
-    # Funció de benchmark per comparar diferents paràmetres
+    # Funcions d'avaluació de rendiment i benchmark
     def benchmark(self, start, goal, alpha, gamma, epsilon, exercici, repetitions = 100, level_of_drunkness=0.0, decay_rate = 0.001, learning_decay = 0.0001):
         """
-        Funció per benchmark
+        Funció per benchmark i comparació dels resultats de diferents paràmetres.
         """
 
         total_episodes = 0
@@ -523,42 +521,47 @@ class TrobarCami():
         print("Average oscillations over", repetitions, "runs:", oscilacions_avg)
         print("Q-Table after benchmark: \n", bench.qTable, "\n")
 
-    def testing(self):
+    def testing(self): 
+        """
+        Funció d'entrenament de l'agent que ens retorna les oscil·lacions mitjanes i contabilitza els episodis necessaris per a la convergència.
+        """
 
-            convergence_cnt = 0
+        convergence_cnt = 0
 
-            oscilacions = 0
+        oscilacions = 0
 
 
-            # Si la taula Q no canvia en 5 episodis seguits, considerem que ha convergit
-            while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
+        # Si la taula Q no canvia en 5 episodis seguits, considerem que ha convergit
+        while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
 
-                # Al principi ens interessa explorar més que explotar
-                # Després ens interessa més explotar que explorar
-                self.epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
+            # Al principi ens interessa explorar més que explotar
+            # Després ens interessa més explotar que explorar
+            self.epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
 
-                # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
-                self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
+            # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
+            self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
 
-                oldQTable = self.qTable.copy()
+            oldQTable = self.qTable.copy()
 
-                # Realitzem un episodi d'entrenament
-                self.doAnEpisode(True)
+            # Realitzem un episodi d'entrenament
+            self.doAnEpisode(True)
 
-                # Calculem les oscil·lacions
-                oscilacions += np.max(np.abs(self.qTable - oldQTable))
+            # Calculem les oscil·lacions
+            oscilacions += np.max(np.abs(self.qTable - oldQTable))
 
-                # Comprovem la convergència
-                if (self.converge(oldQTable, self.qTable)):
-                    convergence_cnt += 1
-                else:
-                    convergence_cnt = 0
-                self.episodes += 1
+            # Comprovem la convergència
+            if (self.converge(oldQTable, self.qTable)):
+                convergence_cnt += 1
+            else:
+                convergence_cnt = 0
+            self.episodes += 1
 
-            # Calculem la mitjana d'oscil·lacions
-            oscilacions_avg = oscilacions / self.episodes
+        # Calculem la mitjana d'oscil·lacions
+        oscilacions_avg = oscilacions / self.episodes
 
-            return oscilacions_avg
+        return oscilacions_avg
+
+
 
 if __name__ == "__main__":
 
@@ -591,10 +594,10 @@ if __name__ == "__main__":
 
 
 
-    # FUNCIÓ BENCHMARK
+    # FUNCIÓ BENCHMARK PER COMPARAR DIFERENTS PARÀMETRES
 
-    exercici = "a"
-    test = TrobarCami(start, goal, exercici, True)
+    # exercici = "a"
+    # test = TrobarCami(start, goal, exercici, True)
 
     # Exerici a
     # test.benchmark(start, goal, 0.45, 0.7, 0.25, "a", 5000)               # Paràmetres de la pregunta a

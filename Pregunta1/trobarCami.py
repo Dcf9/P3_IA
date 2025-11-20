@@ -498,7 +498,7 @@ class TrobarCami():
             test = True
 
             # Creem la instància de la classe
-            bench = TrobarCami(self.start, self.goal, self.exercici, self.learning_rate_initial, self.learning_decay, self.gamma, self.max_epsilon, self.decay_rate, self.level_of_drunkness, test)
+            bench = TrobarCami(self.start, self.goal, self.exercici, self.learning_rate_initial, self.learning_decay, self.gamma, self.max_epsilon, self.decay_rate, self.delta, test, self.level_of_drunkness)
             
             # Iniciem la taula Q
             bench.initiate_q_table()
@@ -592,7 +592,7 @@ if __name__ == "__main__":
 
     # FUNCIÓ BENCHMARK PER COMPARAR DIFERENTS PARÀMETRES
 
-    repetitions = 1
+    repetitions = 5000
 
     # Exericici a
     test = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3, False)

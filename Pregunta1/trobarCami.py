@@ -74,7 +74,7 @@ class TrobarCami():
 
     """
 
-    def __init__(self, start, goal, exercici, levelOfDrunkness=0):
+    def __init__(self, start, goal, exercici, levelOfDrunkness=0, test=True):
 
         #---------- Atributs pel mapa i el mariner ----------#
         self.sailorPosition = start                                         # Posició inicial
@@ -85,31 +85,41 @@ class TrobarCami():
         self.goal = goal                                                    # Posició objectiu
         self.exercici = exercici                                            # Exercici a o b
         self.accions = {0: "Amunt", 1: "Avall", 2: "Esquerra", 3: "Dreta"}  # Accions possibles
+        self.test = test                                                    # Mode execució
 
         self.map = None
         self.initial_position()                                             # Graella inicial amb les recompenses en funció de l'exercici
 
-        self.initiate_map()                                                 # Dibuixem la graella
+        if (not self.test):
+            self.initiate_map()                                             # Dibuixem la graella
         #-----------------------------------------------------#
 
         #-------------- Atributs per Q-learning --------------#
         self.qTable = None                                                  # Taula Q
-        self.intermediateQTable = None                                      # Taula Q intermèdia
+        self.intermediateQTable1 = None                                     # Taula Q intermitja 1
+        self.intermediateQTable2 = None                                     # Taula Q intermitja 2
+
         self.posToState = {}                                                # Diccionari d'estats per la taula Q
         self.stateToPos = {}                                                # Diccionari de posicions per la taula Q
 
         self.n_training_episodes = 1000                                     # Nombre d'episodis d'entrenament
-        self.learning_rate = 0.5                                            # Taxa d'aprenentatge (alpha)
-        self.learning_rate_initial = 0.3                                    # Taxa d'aprenentatge inicial (alpha)
+        self.learning_rate = 0                                              # Taxa d'aprenentatge (alpha)
+        self.learning_rate_initial = 0.5                                    # Taxa d'aprenentatge inicial
+        self.learning_rate_min = 0.1                                        # Taxa d'aprenentatge mínima
+        self.learning_decay = 0.0001                                        # Decaiguda de la taxa d'aprenentatge
 
         self.n_eval_parametres = 100                                        # Nombre d'episodis per avaluar
 
-        self.max_steps = 100                                                # Nombre màxim d'iteracions per episodi
+        self.max_steps = 50                                                 # Nombre màxim d'iteracions per episodi
         self.gamma = 0.95                                                   # Factor de descompte (gamma)             
 
+        self.epsilon = 1                                                    # Probabilitat d'exploració inicial
         self.max_epsilon = 1                                                # Probabilitat d'exploració
         self.min_epsilon = 0.1                                              # Probabilitat mínima d'exploració
-        self.decay_rate = 0.01                                              # Taxa de decaiguda d'epsilon
+        self.decay_rate = 0.001                                             # Taxa de decaiguda d'epsilon
+
+        self.delta = 1e-3                                                   # Criteri de convergència
+        self.episodes = 0                                                   # Comptador d'episodis            
         #-----------------------------------------------------#
 
     def initial_position(self):
@@ -133,7 +143,9 @@ class TrobarCami():
 
         # Crear figura i eixos només una vegada
         self.fig, self.ax = plt.subplots(figsize=(8, 6))
-        self.print_map()
+
+        if (not self.test):
+            self.print_map()
 
         # Crear cercle (mariner) i afegir-lo
         self.cercle = Circle(
@@ -168,12 +180,13 @@ class TrobarCami():
         # Inicialitzem la taula Q amb zeros
         self.qTable = np.zeros((comptador_estats, 4))
 
-        print("\nQ-table inicialitzada: \n", self.qTable)
+        # print("\nQ-table inicialitzada: \n", self.qTable)
 
     def print_map(self):
         """
         Dibuixa la graella i amb un cercle indicant la posició del mariner.
         """
+
         n_files, n_col = self.map.shape
         color_array = np.zeros((n_files, n_col, 3))
         white_rgb = np.array([1.0, 1.0, 1.0])
@@ -215,6 +228,9 @@ class TrobarCami():
         self.ax.set_ylim(n_files-0.5, -0.5)
 
     def print_q_table(self):
+        """
+        Mostra la Q-Table per terminal.
+        """
         print("Q-table: \n", self.qTable)
     
     def epsilon_greeedy_policy(self, state, epsilon):
@@ -322,7 +338,7 @@ class TrobarCami():
         """
         return position == self.goal
 
-    def doAnEpisode(self, policy, epsilon = None):
+    def doAnEpisode(self, policy):
         """
         Realitza un episodi complet seguint la política donada
         Policy: 
@@ -348,7 +364,7 @@ class TrobarCami():
 
             if policy:
 
-                action = self.epsilon_greeedy_policy(state, epsilon)
+                action = self.epsilon_greeedy_policy(state, self.epsilon)
                 
                 self.move_simulator(action)
 
@@ -382,28 +398,71 @@ class TrobarCami():
                 state = newState
 
     def train(self):
-        for episode in trange(self.n_training_episodes):
+        """
+        Entrena l'agent fins a obtenir la convergència a la taula Q.
+        """
+
+        # Contador de convergència que ens permet saber quan s'ha arribat a la convergència 
+        convergence_cnt = 0
+
+        
+
+        # Si la taula Q no canvia en 5 episodis seguits, considerem que ha convergit
+        # while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
+        while (convergence_cnt < 10 and self.episodes < self.n_training_episodes):
+
             # Al principi ens interessa explorar més que explotar
             # Després ens interessa més explotar que explorar
-            epsilon = self.max_epsilon * np.exp(-self.decay_rate * episode)
+            self.epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
 
-            # Decreixem la taxa d'aprenentatge al llarg de l'entrenament
-            self.learning_rate = self.learning_rate_initial / (1 + episode)
+            # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
+            self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
 
-            self.doAnEpisode(True, epsilon)
+            # Actualitzem la taula Q antiga
+            oldQTable = self.qTable.copy()
 
-            # Imprimim la taula a meitat d'entrenament
-            if episode == self.n_training_episodes // 2:
-                self.intermediateQTable = copy.deepcopy(self.qTable)
+            # Realitzem un episodi d'entrenament
+            self.doAnEpisode(True)
+
+            # Comprovem la convergència
+            if (self.converge(oldQTable, self.qTable)):
+                convergence_cnt += 1
+            else:
+                convergence_cnt = 0
+
+            # Actualitzem el comptador d'episodis    
+            self.episodes += 1
+
+
+        # # Imprimim la taula a meitat d'entrenament
+        # if episode == int(self.n_training_episodes // 3):
+        #     self.intermediateQTable = copy.deepcopy(self.qTable)
+        # elif episode == 2 * int(self.n_training_episodes // 3):
+        #     # self.intermediateQTable2 = copy.deepcopy(self.qTable)
+        #     self.intermediateQTable2 = self.qTable.copy()
+
+
+        print("\nEntrenament finalitzat.")
+
+        print("Nombre d'episodis d'entrenament:", self.episodes)
+
+    def converge(self, oldQTable, newQTable):
+
+        # Comprova si la taula Q ha canviat menys que el delta definit
+        return np.max(np.abs(newQTable - oldQTable)) < self.delta
 
     def q_learning(self):
         
+        # Inicialitzem la taula Q
         self.initiate_q_table()
 
+        # Entrenem l'agent
         print("\nEntrenament en procés...")
         self.train()
 
-        print("\nQ-Table a meitat d'entrenament: \n", self.intermediateQTable)
+        # print("\nQ-Table a 1/3 d'entrenament: \n", self.intermediateQTable)
+
+        # print("\nQ-Table a 2/3 d'entrenament: \n", self.intermediateQTable2)
 
         # Taula Q final
         print("\nQ-Table final: \n", self.qTable)
@@ -414,6 +473,7 @@ class TrobarCami():
         plt.show()
         plt.pause(1)    # Esperem perquè s'obri
 
+        # Avaluem l'agent amb la política greedy
         self.doAnEpisode(False)
 
         print(f"El mariner ha xocat {self.n_hiting_wall} cops amb la paret!")
@@ -421,6 +481,87 @@ class TrobarCami():
         # Mapa obert fins que es tanqui
         # plt.show(block=True)
         plt.pause(2)
+
+
+    # Funcions d'avaluació de rendiment i benchmark
+    def benchmark(self, start, goal, alpha, gamma, epsilon, exercici, repetitions = 100, level_of_drunkness=0.0, decay_rate = 0.001, learning_decay = 0.0001):
+        """
+        Funció per benchmark i comparació dels resultats de diferents paràmetres.
+        """
+
+        total_episodes = 0
+        oscilacions = 0
+
+        for i in range(repetitions):
+
+            # Creem la instància de la classe
+            bench = TrobarCami(start, goal, exercici, level_of_drunkness, True)
+
+            # Configurem els paràmetres
+            bench.learning_rate_initial = alpha
+            bench.gamma = gamma
+            bench.max_epsilon = epsilon
+
+            # Iniciem la taula Q
+            bench.initiate_q_table()
+
+            # Entrenem l'agent
+            oscilacions += bench.testing()
+
+            # Acumulem el nombre d'episodis
+            total_episodes += bench.episodes
+
+        # Calculem la mitjana d'episodis
+        avg_episodes = total_episodes / repetitions
+
+        # Calculem la mitjana d'oscil·lacions
+        oscilacions_avg = oscilacions / repetitions
+
+        print("Average episodes to reach goal over", repetitions, "runs:", avg_episodes)
+        print("Average oscillations over", repetitions, "runs:", oscilacions_avg)
+        print("Q-Table after benchmark: \n", bench.qTable, "\n")
+
+    def testing(self): 
+        """
+        Funció d'entrenament de l'agent que ens retorna les oscil·lacions mitjanes i contabilitza els episodis necessaris per a la convergència.
+        """
+
+        convergence_cnt = 0
+
+        oscilacions = 0
+
+
+        # Si la taula Q no canvia en 5 episodis seguits, considerem que ha convergit
+        while (convergence_cnt < 5 and self.episodes < self.n_training_episodes):
+
+            # Al principi ens interessa explorar més que explotar
+            # Després ens interessa més explotar que explorar
+            self.epsilon = max(self.min_epsilon, self.max_epsilon * np.exp(-self.decay_rate * self.episodes))
+
+            # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
+            self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
+
+            oldQTable = self.qTable.copy()
+
+            # Realitzem un episodi d'entrenament
+            self.doAnEpisode(True)
+
+            # Calculem les oscil·lacions
+            oscilacions += np.max(np.abs(self.qTable - oldQTable))
+
+            # Comprovem la convergència
+            if (self.converge(oldQTable, self.qTable)):
+                convergence_cnt += 1
+            else:
+                convergence_cnt = 0
+            self.episodes += 1
+
+        # Calculem la mitjana d'oscil·lacions
+        oscilacions_avg = oscilacions / self.episodes
+
+        return oscilacions_avg
+
+
 
 if __name__ == "__main__":
 
@@ -433,15 +574,39 @@ if __name__ == "__main__":
 
     # Posició objectiu         
     goal = (0, 3)
+
     
 
     # EXERCICI 1.a)
     # cami = TrobarCami(start, goal, "a")
+    # cami.q_learning()
+
 
     # EXERCICI 1.b)
-    # cami = TrobarCami(start, (goal, "b")
+    # cami = TrobarCami(start, goal, "b")
+    # cami.q_learning()
+
 
     # EXERCICI 1.c)
-    cami = TrobarCami(start, goal, "b", 0.01)
+    # cami = TrobarCami(start, goal, "b", 0.01)
+    # cami.q_learning()
 
-    cami.q_learning()
+
+
+
+    # FUNCIÓ BENCHMARK PER COMPARAR DIFERENTS PARÀMETRES
+
+    # exercici = "a"
+    # test = TrobarCami(start, goal, exercici, True)
+
+    # Exerici a
+    # test.benchmark(start, goal, 0.45, 0.7, 0.25, "a", 5000)               # Paràmetres de la pregunta a
+
+
+    # Exerici b
+    # test.benchmark(start, goal, 0.7, 0.4, 0.2, "b", 5000, 0.002)          # Paràmetres de la pregunta b
+
+
+    # Exerici c
+    # test.benchmark(start, goal, 0.6, 0.4, 0.2, "b", 5000, 0.01)             # Paràmetres de la pregunta c
+    

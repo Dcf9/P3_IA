@@ -23,7 +23,7 @@ class TrobarCami():
         Posició objectiu
     exercici : str
         Exercici a o b
-    levelOfDrunkness : float
+    level_of_drunkness : float
         Nivell d'embriaguesa (randomness)
     -------------------------------------------
         
@@ -74,13 +74,13 @@ class TrobarCami():
 
     """
 
-    def __init__(self, start, goal, exercici, levelOfDrunkness=0, test=True):
+    def __init__(self, start, goal, exercici, learning_rate_initial, learning_decay, gamma, max_epsilon, decay_rate, delta, test=False, level_of_drunkness=0):
 
         #---------- Atributs pel mapa i el mariner ----------#
-        self.sailorPosition = start                                         # Posició inicial
-        self.levelOfDrunkness = levelOfDrunkness                             # Nivell d'embriaguesa (randomness)
+        self.sailor_position = start                                        # Posició inicial
+        self.level_of_drunkness = level_of_drunkness                        # Nivell d'embriaguesa (randomness)
         self.n_hiting_wall = 0                                              # Comptador de cops a la paret
-        self.sailorPositionSimulator = start                                # Posició inicial per entrenar    
+        self.sailor_position_simulator = start                              # Posició inicial per entrenar    
         self.start = start              
         self.goal = goal                                                    # Posició objectiu
         self.exercici = exercici                                            # Exercici a o b
@@ -95,30 +95,30 @@ class TrobarCami():
         #-----------------------------------------------------#
 
         #-------------- Atributs per Q-learning --------------#
-        self.qTable = None                                                  # Taula Q
-        self.intermediateQTable1 = None                                     # Taula Q intermitja 1
-        self.intermediateQTable2 = None                                     # Taula Q intermitja 2
+        self.q_table = None                                                 # Taula Q
+        self.intermediate_q_table1 = None                                   # Taula Q intermitja 1
+        self.intermediate_q_table2 = None                                   # Taula Q intermitja 2
 
-        self.posToState = {}                                                # Diccionari d'estats per la taula Q
-        self.stateToPos = {}                                                # Diccionari de posicions per la taula Q
+        self.pos_to_state = {}                                              # Diccionari d'estats per la taula Q
+        self.state_to_pos = {}                                              # Diccionari de posicions per la taula Q
 
         self.n_training_episodes = 1000                                     # Nombre d'episodis d'entrenament
         self.learning_rate = 0                                              # Taxa d'aprenentatge (alpha)
-        self.learning_rate_initial = 0.5                                    # Taxa d'aprenentatge inicial
+        self.learning_rate_initial = learning_rate_initial                                    # Taxa d'aprenentatge inicial
         self.learning_rate_min = 0.1                                        # Taxa d'aprenentatge mínima
-        self.learning_decay = 0.0001                                        # Decaiguda de la taxa d'aprenentatge
+        self.learning_decay = learning_decay                                # Decaiguda de la taxa d'aprenentatge
 
         self.n_eval_parametres = 100                                        # Nombre d'episodis per avaluar
 
         self.max_steps = 50                                                 # Nombre màxim d'iteracions per episodi
-        self.gamma = 0.95                                                   # Factor de descompte (gamma)             
+        self.gamma = gamma                                                  # Factor de descompte (gamma)             
 
         self.epsilon = 1                                                    # Probabilitat d'exploració inicial
-        self.max_epsilon = 1                                                # Probabilitat d'exploració
+        self.max_epsilon = max_epsilon                                      # Probabilitat d'exploració
         self.min_epsilon = 0.1                                              # Probabilitat mínima d'exploració
-        self.decay_rate = 0.001                                             # Taxa de decaiguda d'epsilon
+        self.decay_rate = decay_rate                                        # Taxa de decaiguda d'epsilon
 
-        self.delta = 1e-3                                                   # Criteri de convergència
+        self.delta = delta                                                  # Criteri de convergència
         self.episodes = 0                                                   # Comptador d'episodis            
         #-----------------------------------------------------#
 
@@ -149,7 +149,7 @@ class TrobarCami():
 
         # Crear cercle (mariner) i afegir-lo
         self.cercle = Circle(
-            (self.sailorPosition[1], self.sailorPosition[0]),
+            (self.sailor_position[1], self.sailor_position[0]),
             0.3, fill=False, edgecolor='#8000FF', linewidth=4
         )
         self.ax.add_patch(self.cercle)
@@ -173,14 +173,16 @@ class TrobarCami():
         for i in range(n_files):
             for j in range(n_cols):
                 if self.map[i, j] is not None:
-                    self.posToState[(i, j)] = comptador_estats
-                    self.stateToPos[comptador_estats] = (i, j)
+                    self.pos_to_state[(i, j)] = comptador_estats
+                    self.state_to_pos[comptador_estats] = (i, j)
                     comptador_estats += 1
 
         # Inicialitzem la taula Q amb zeros
-        self.qTable = np.zeros((comptador_estats, 4))
+        
+        self.q_table = np.zeros((comptador_estats, 4))
 
-        # print("\nQ-table inicialitzada: \n", self.qTable)
+        if (not self.test):
+            print("\nQ-table inicialitzada: \n", self.q_table)
 
     def print_map(self):
         """
@@ -231,7 +233,7 @@ class TrobarCami():
         """
         Mostra la Q-Table per terminal.
         """
-        print("Q-table: \n", self.qTable)
+        print("Q-table: \n", self.q_table)
     
     def epsilon_greeedy_policy(self, state, epsilon):
         """
@@ -241,13 +243,13 @@ class TrobarCami():
             - (1 - epsilon): Probabilitat d'explotació (triar la millor acció segons la taula Q)
         Això s'escollira a partir d'un nombre aleatori de [0,1]
         """
-        _, n_actions = self.qTable.shape
+        _, n_actions = self.q_table.shape
 
         random_number = np.random.uniform(0,1)
         if random_number < epsilon:                     # Exploració
             action = np.random.randint(n_actions)      
         else:                                           # Explotació
-            action = np.argmax(self.qTable[state])      
+            action = np.argmax(self.q_table[state])      
 
         return action
 
@@ -256,18 +258,18 @@ class TrobarCami():
         Politica d'actualització
         Sempre tria la millor acció segons la taula Q
         """
-        return np.argmax(self.qTable[state])
+        return np.argmax(self.q_table[state])
 
     def move_sailor(self, action):
         """
         Movem el mariner a la nova posició i actualitzem el dibuix.
         """
         # Randomness per l'embriaguesa
-        if np.random.uniform(0,1) < self.levelOfDrunkness:
+        if np.random.uniform(0,1) < self.level_of_drunkness:
             action = np.random.randint(0,4)
 
         n_files, n_col = self.map.shape
-        row, col = self.sailorPosition
+        row, col = self.sailor_position
 
         # Fem el moviment
         if action == 0:     # Amunt
@@ -284,7 +286,7 @@ class TrobarCami():
         # Comprovem si el moviment es valid
         if not ((new_row < 0 or new_row >= n_files) or (new_col < 0 or new_col >= n_col) or (self.map[new_row, new_col] is None)):
             # Fem  el moviment
-            self.sailorPosition = (new_row, new_col)    # format (fila, columna)
+            self.sailor_position = (new_row, new_col)    # format (fila, columna)
             self.cercle.center = (new_col, new_row)     # matplotlib treballa amb el format (columna, fila) 
             self.fig.canvas.draw_idle()                 # Actualitzem el dibuix
             plt.pause(0.3)                              # Pause per veure el moviment
@@ -299,11 +301,11 @@ class TrobarCami():
         Comprova si es possible fer el moviment en el simulador
         """
         # Randomness per l'embriaguesa
-        if np.random.uniform(0,1) < self.levelOfDrunkness:
+        if np.random.uniform(0,1) < self.level_of_drunkness:
             action = np.random.randint(0,4)
 
         n_files, n_col = self.map.shape
-        row, col = self.sailorPositionSimulator
+        row, col = self.sailor_position_simulator
 
         # Fem el moviment
         if action == 0:     # Amunt
@@ -320,7 +322,7 @@ class TrobarCami():
         # Comprovem si el moviment es vàlid
         if not ((new_row < 0 or new_row >= n_files) or (new_col < 0 or new_col >= n_col) or (self.map[new_row, new_col] is None)):
             # Simulem el moviment
-            self.sailorPositionSimulator = (new_row, new_col)
+            self.sailor_position_simulator = (new_row, new_col)
             return True
         
         # Moviment no vàlid i ens quedem a la mateixa posició
@@ -350,12 +352,12 @@ class TrobarCami():
 
         # Inicialitzem l'episodi
         if policy:
-            self.sailorPositionSimulator = self.start
-            state = self.posToState[self.sailorPositionSimulator]
+            self.sailor_position_simulator = self.start
+            state = self.pos_to_state[self.sailor_position_simulator]
 
         else:
-            self.sailorPosition = self.start
-            state = self.posToState[self.sailorPosition]
+            self.sailor_position = self.start
+            state = self.pos_to_state[self.sailor_position]
 
         step = 0
 
@@ -369,7 +371,7 @@ class TrobarCami():
                 self.move_simulator(action)
 
                 # En el move_simulator ja actualitzem la posició del mariner
-                newPosition = self.sailorPositionSimulator
+                new_position = self.sailor_position_simulator
 
             else:
 
@@ -378,24 +380,24 @@ class TrobarCami():
                 self.move_sailor(action)
 
                 # En el move_sailor ja actualitzem la posició del mariner
-                newPosition = self.sailorPosition
+                new_position = self.sailor_position
 
-            newState = self.posToState[newPosition]
+            new_state = self.pos_to_state[new_position]
 
-            reward = self.reward(newPosition)
+            reward = self.reward(new_position)
 
             sequence.append(self.accions[action])
 
             # Equacio de Bellman
-            self.qTable[state][action] = self.qTable[state][action] + self.learning_rate * (reward + self.gamma * np.max(self.qTable[newState]) - self.qTable[state][action])
+            self.q_table[state][action] = self.q_table[state][action] + self.learning_rate * (reward + self.gamma * np.max(self.q_table[new_state]) - self.q_table[state][action])
 
-            if self.goalReached(newPosition):   # Si arribem a goal, acabem
+            if self.goalReached(new_position):   # Si arribem a goal, acabem
                 if (not policy):
                     print(f"Objectiu assolit en {step+1} passes!")
                     print("Seqüència d'accions: ", sequence)
                 break
             else:                               # Si no, actualitzem l'estat
-                state = newState
+                state = new_state
 
     def train(self):
         """
@@ -419,13 +421,13 @@ class TrobarCami():
             self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
 
             # Actualitzem la taula Q antiga
-            oldQTable = self.qTable.copy()
+            old_q_table = self.q_table.copy()
 
             # Realitzem un episodi d'entrenament
             self.doAnEpisode(True)
 
             # Comprovem la convergència
-            if (self.converge(oldQTable, self.qTable)):
+            if (self.converge(old_q_table, self.q_table)):
                 convergence_cnt += 1
             else:
                 convergence_cnt = 0
@@ -434,22 +436,21 @@ class TrobarCami():
             self.episodes += 1
 
 
-        # # Imprimim la taula a meitat d'entrenament
-        # if episode == int(self.n_training_episodes // 3):
-        #     self.intermediateQTable = copy.deepcopy(self.qTable)
-        # elif episode == 2 * int(self.n_training_episodes // 3):
-        #     # self.intermediateQTable2 = copy.deepcopy(self.qTable)
-        #     self.intermediateQTable2 = self.qTable.copy()
+            # Imprimim la taula a meitat d'entrenament
+            if self.episodes == 50:
+                self.intermediate_q_table1 = self.q_table.copy()
+            elif self.episodes == 100:
+                self.intermediate_q_table2 = self.q_table.copy()
 
 
         print("\nEntrenament finalitzat.")
 
         print("Nombre d'episodis d'entrenament:", self.episodes)
 
-    def converge(self, oldQTable, newQTable):
+    def converge(self, old_q_table, new_q_table):
 
         # Comprova si la taula Q ha canviat menys que el delta definit
-        return np.max(np.abs(newQTable - oldQTable)) < self.delta
+        return np.max(np.abs(new_q_table - old_q_table)) < self.delta
 
     def q_learning(self):
         
@@ -460,12 +461,12 @@ class TrobarCami():
         print("\nEntrenament en procés...")
         self.train()
 
-        # print("\nQ-Table a 1/3 d'entrenament: \n", self.intermediateQTable)
+        print("\nQ-Table a 1/3 d'entrenament: \n", self.intermediate_q_table1)
 
-        # print("\nQ-Table a 2/3 d'entrenament: \n", self.intermediateQTable2)
+        print("\nQ-Table a 2/3 d'entrenament: \n", self.intermediate_q_table2)
 
         # Taula Q final
-        print("\nQ-Table final: \n", self.qTable)
+        print("\nQ-Table final: \n", self.q_table)
 
         print("\nAvaluant l'agent...\n")
 
@@ -479,12 +480,12 @@ class TrobarCami():
         print(f"El mariner ha xocat {self.n_hiting_wall} cops amb la paret!")
 
         # Mapa obert fins que es tanqui
-        # plt.show(block=True)
+        plt.show(block=True)
         plt.pause(2)
 
 
     # Funcions d'avaluació de rendiment i benchmark
-    def benchmark(self, start, goal, alpha, gamma, epsilon, exercici, repetitions = 100, level_of_drunkness=0.0, decay_rate = 0.001, learning_decay = 0.0001):
+    def benchmark(self, repetitions = 100):
         """
         Funció per benchmark i comparació dels resultats de diferents paràmetres.
         """
@@ -494,14 +495,11 @@ class TrobarCami():
 
         for i in range(repetitions):
 
+            test = True
+
             # Creem la instància de la classe
-            bench = TrobarCami(start, goal, exercici, level_of_drunkness, True)
-
-            # Configurem els paràmetres
-            bench.learning_rate_initial = alpha
-            bench.gamma = gamma
-            bench.max_epsilon = epsilon
-
+            bench = TrobarCami(self.start, self.goal, self.exercici, self.learning_rate_initial, self.learning_decay, self.gamma, self.max_epsilon, self.decay_rate, self.level_of_drunkness, test)
+            
             # Iniciem la taula Q
             bench.initiate_q_table()
 
@@ -519,7 +517,7 @@ class TrobarCami():
 
         print("Average episodes to reach goal over", repetitions, "runs:", avg_episodes)
         print("Average oscillations over", repetitions, "runs:", oscilacions_avg)
-        print("Q-Table after benchmark: \n", bench.qTable, "\n")
+        print("Q-Table after benchmark: \n", bench.q_table, "\n")
 
     def testing(self): 
         """
@@ -541,16 +539,16 @@ class TrobarCami():
             # Decrementem la taxa d'aprenentatge al llarg de l'entrenament
             self.learning_rate = max(self.learning_rate_min, self.learning_rate_initial *np.exp(-self.learning_decay * self.episodes))
 
-            oldQTable = self.qTable.copy()
+            old_q_table = self.q_table.copy()
 
             # Realitzem un episodi d'entrenament
             self.doAnEpisode(True)
 
             # Calculem les oscil·lacions
-            oscilacions += np.max(np.abs(self.qTable - oldQTable))
+            oscilacions += np.max(np.abs(self.q_table - old_q_table))
 
             # Comprovem la convergència
-            if (self.converge(oldQTable, self.qTable)):
+            if (self.converge(old_q_table, self.q_table)):
                 convergence_cnt += 1
             else:
                 convergence_cnt = 0
@@ -566,7 +564,6 @@ class TrobarCami():
 if __name__ == "__main__":
 
     # Creem la instància de la classe
-
     # Amb la graella de l'exercici a) o b)
 
     # Posició inicial
@@ -578,35 +575,39 @@ if __name__ == "__main__":
     
 
     # EXERCICI 1.a)
-    # cami = TrobarCami(start, goal, "a")
+    # cami = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3)
     # cami.q_learning()
 
 
     # EXERCICI 1.b)
-    # cami = TrobarCami(start, goal, "b")
+    # cami = TrobarCami(start, goal, "b", 0.7, 0.0001, 0.4, 0.2, 0.002, 1e-3)
     # cami.q_learning()
 
 
     # EXERCICI 1.c)
-    # cami = TrobarCami(start, goal, "b", 0.01)
+    # cami = TrobarCami(start, goal, "b", 0.6, 0.0001, 0.4, 0.2, 0.002, 1e-3, 0.01)
     # cami.q_learning()
-
 
 
 
     # FUNCIÓ BENCHMARK PER COMPARAR DIFERENTS PARÀMETRES
 
-    # exercici = "a"
-    # test = TrobarCami(start, goal, exercici, True)
+    repetitions = 1
 
-    # Exerici a
-    # test.benchmark(start, goal, 0.45, 0.7, 0.25, "a", 5000)               # Paràmetres de la pregunta a
+    # Exericici a
+    test = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3, False)
+    test.benchmark(repetitions)
+
+    # Exercici b
+    # test = TrobarCami(start, goal, "b", 0.7, 0.0001, 0.4, 0.2, 0.002, 1e-3, True)
+    # test.benchmark(repetitions)
+
+    # Exercici c
+    # test = TrobarCami(start, goal, "b", 0.6, 0.0001, 0.4, 0.2, 0.002, 1e-3, 0.01, True)
+    # test.benchmark(repetitions)
 
 
-    # Exerici b
-    # test.benchmark(start, goal, 0.7, 0.4, 0.2, "b", 5000, 0.002)          # Paràmetres de la pregunta b
 
 
-    # Exerici c
-    # test.benchmark(start, goal, 0.6, 0.4, 0.2, "b", 5000, 0.01)             # Paràmetres de la pregunta c
+
     

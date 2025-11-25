@@ -575,13 +575,13 @@ if __name__ == "__main__":
     
 
     # EXERCICI 1.a)
-    cami = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3)
-    cami.q_learning()
+    # cami = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3)
+    # cami.q_learning()
 
 
     # EXERCICI 1.b)
-    # cami = TrobarCami(start, goal, "b", 0.7, 0.0001, 0.4, 0.2, 0.002, 1e-3)
-    # cami.q_learning()
+    cami = TrobarCami(start, goal, "b", 0.7, 0.0001, 0.4, 0.2, 0.002, 1e-3)
+    cami.q_learning()
 
 
     # EXERCICI 1.c)
@@ -591,8 +591,8 @@ if __name__ == "__main__":
 
 
     # FUNCIÓ BENCHMARK PER COMPARAR DIFERENTS PARÀMETRES
-
-    # repetitions = 5000
+    
+    repetitions = 1000
 
     # Exericici a
     # test = TrobarCami(start, goal, "a", 0.45, 0.0001, 0.7, 0.25, 0.001, 1e-3, False)
@@ -603,8 +603,8 @@ if __name__ == "__main__":
     # test.benchmark(repetitions)
 
     # Exercici c
-    # test = TrobarCami(start, goal, "b", 0.6, 0.0001, 0.4, 0.2, 0.002, 1e-3, 0.01, True)
-    # test.benchmark(repetitions)
+    test = TrobarCami(start, goal, "b", 0.6, 0.0001, 0.4, 0.2, 0.002, 1e-6, 0.01, True)
+    test.benchmark(repetitions)
 
 
 
